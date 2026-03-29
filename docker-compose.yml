@@ -1,0 +1,159 @@
+services:
+
+  db:
+    image: postgres:16-alpine
+    container_name: pulse_care_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-pulse_care}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-pulse_care}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: pulse_care_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
+    container_name: pulse_care_elasticsearch
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
+      interval: 20s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.13.4
+    container_name: pulse_care_kibana
+    restart: unless-stopped
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      XPACK_SECURITY_ENABLED: "false"
+    ports:
+      - "5601:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  apm_server:
+    image: docker.elastic.co/apm/apm-server:8.13.4
+    container_name: pulse_care_apm_server
+    restart: unless-stopped
+    command: >
+      apm-server -e
+      -E apm-server.host=0.0.0.0:8200
+      -E output.elasticsearch.hosts=["elasticsearch:9200"]
+      -E output.elasticsearch.protocol=http
+      -E apm-server.kibana.enabled=true
+      -E apm-server.kibana.host=http://kibana:5601
+      -E apm-server.auth.anonymous.enabled=true
+      -E apm-server.data_streams.wait_for_integration=false
+    ports:
+      - "8200:8200"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      kibana:
+        condition: service_started
+
+  web:
+    build: .
+    container_name: pulse_care_web
+    restart: unless-stopped
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             python manage.py create_admin &&
+             python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - .:/app
+      - media_files:/app/media
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      DB_ENGINE: django.db.backends.postgresql
+      DB_HOST: db
+      CELERY_BROKER_URL: redis://redis:6379/0
+      APM_SERVER_URL: http://apm_server:8200
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      apm_server:
+        condition: service_started
+
+  celery_worker:
+    build: .
+    container_name: pulse_care_celery_worker
+    restart: unless-stopped
+    command: celery -A core worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-4}
+    volumes:
+      - .:/app
+    env_file: .env
+    environment:
+      DB_ENGINE: django.db.backends.postgresql
+      DB_HOST: db
+      CELERY_BROKER_URL: redis://redis:6379/0
+      APM_SERVER_URL: http://apm_server:8200
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      apm_server:
+        condition: service_started
+
+  celery_beat:
+    build: .
+    container_name: pulse_care_celery_beat
+    restart: unless-stopped
+    command: celery -A core beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler --pidfile=
+    volumes:
+      - .:/app
+    env_file: .env
+    environment:
+      DB_ENGINE: django.db.backends.postgresql
+      DB_HOST: db
+      CELERY_BROKER_URL: redis://redis:6379/0
+      APM_SERVER_URL: http://apm_server:8200
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      apm_server:
+        condition: service_started
+
+volumes:
+  postgres_data:
+  media_files:
+  elasticsearch_data:
