@@ -109,10 +109,16 @@ class MedicalRecordListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for list and nested views."""
     patient_name = serializers.CharField(source='patient.full_name', read_only=True)
     doctor_name = serializers.CharField(source='doctor.full_name', read_only=True)
+    attachments_count = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_attachments_count(self, obj):
+        return int(getattr(obj, 'attachments_count', 0) or 0)
 
     class Meta:
         model = MedicalRecord
         fields = [
             'id', 'patient', 'patient_name', 'doctor', 'doctor_name',
             'chief_complaint', 'diagnosis', 'icd10_code', 'created_at',
+            'attachments_count',
         ]

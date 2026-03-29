@@ -70,6 +70,8 @@ class PatientListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for list views."""
     full_name = serializers.SerializerMethodField()
     age = serializers.SerializerMethodField()
+    appointments_count = serializers.SerializerMethodField()
+    medical_records_count = serializers.SerializerMethodField()
 
     @extend_schema_field(serializers.CharField())
     def get_full_name(self, obj):
@@ -79,9 +81,18 @@ class PatientListSerializer(serializers.ModelSerializer):
     def get_age(self, obj):
         return obj.age
 
+    @extend_schema_field(serializers.IntegerField())
+    def get_appointments_count(self, obj):
+        return int(getattr(obj, 'appointments_count', 0) or 0)
+
+    @extend_schema_field(serializers.IntegerField())
+    def get_medical_records_count(self, obj):
+        return int(getattr(obj, 'medical_records_count', 0) or 0)
+
     class Meta:
         model = Patient
         fields = [
             'id', 'full_name', 'cpf', 'date_of_birth', 'age',
             'gender', 'phone', 'blood_type', 'is_active',
+            'appointments_count', 'medical_records_count',
         ]

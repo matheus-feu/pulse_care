@@ -1,13 +1,14 @@
 import logging
 
+from django.db.models import Count
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse
-from rest_framework import viewsets, status
+from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from core.mixins import ActorContextMixin, SoftDeleteMixin
 from core.swagger import extend_schema_with_examples, request_example, response_example
-from core.utils import get_actor_email
 from .filters import PatientFilter
 from .models import Patient
 from .serializers import PatientSerializer, PatientListSerializer
@@ -72,7 +73,7 @@ logger = logging.getLogger(__name__)
         responses={200: OpenApiResponse(description='Patient deactivated')},
     ),
 )
-class PatientViewSet(viewsets.ModelViewSet):
+class PatientViewSet(ActorContextMixin, SoftDeleteMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing patients.
     Supports search, filtering and ordering.
@@ -81,6 +82,7 @@ class PatientViewSet(viewsets.ModelViewSet):
     queryset = Patient.objects.filter(is_active=True).select_related('created_by')
     serializer_class = PatientSerializer
     permission_classes = [IsAuthenticated]
+    soft_delete_response_message = 'Patient deactivated successfully.'
     filterset_class = PatientFilter
     search_fields = ['first_name', 'last_name', 'cpf', 'email', 'phone']
     ordering_fields = ['last_name', 'first_name', 'date_of_birth', 'created_at']
@@ -93,6 +95,13 @@ class PatientViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = Patient.objects.select_related('created_by')
+
+        if self.action == 'list':
+            queryset = queryset.annotate(
+                appointments_count=Count('appointments', distinct=True),
+                medical_records_count=Count('medical_records', distinct=True),
+            )
+
         params = getattr(self.request, 'query_params', self.request.GET)
         show_inactive = params.get('show_inactive', '').lower() == 'true'
         if not show_inactive:
@@ -101,27 +110,18 @@ class PatientViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         patient = serializer.save(created_by=self.request.user)
-        actor_email = get_actor_email(self.request.user)
+        actor_email = self.actor_email()
         logger.info(
             f'Patient created by={actor_email} patient_id={patient.pk} '
             f'name={patient.full_name} cpf={patient.cpf}')
 
-    def perform_destroy(self, instance):
-        """Soft delete — mark as inactive instead of removing from DB."""
-        instance.is_active = False
-        instance.save(update_fields=['is_active'])
-        actor_email = get_actor_email(self.request.user)
+    def perform_soft_delete(self, instance):
+        super().perform_soft_delete(instance)
+        actor_email = self.actor_email()
         logger.info(
             f'Patient deactivated by={actor_email} patient_id={instance.pk} '
             f'name={instance.full_name} cpf={instance.cpf}')
 
-    def destroy(self, request, *args, **kwargs):
-        """Override to return 200 with message instead of 204 (since it's a soft delete)."""
-        self.perform_destroy(self.get_object())
-        return Response(
-            {'detail': 'Patient deactivated successfully.'},
-            status=status.HTTP_200_OK,
-        )
 
     @extend_schema_with_examples(
         tags=['Patients'],
@@ -184,7 +184,7 @@ class PatientViewSet(viewsets.ModelViewSet):
         appointments = patient.appointments.select_related('doctor').order_by('-scheduled_at')
         records = patient.medical_records.select_related('doctor').order_by('-created_at')
 
-        actor_email = get_actor_email(request.user)
+        actor_email = self.actor_email(request)
         logger.info(
             f'Patient history requested by={actor_email} patient_id={patient.pk} '
             f'name={patient.full_name} appointments={appointments.count()} records={records.count()}')

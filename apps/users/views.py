@@ -1,14 +1,14 @@
 import logging
 
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiResponse
-from rest_framework import viewsets, status
+from rest_framework import viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import AuthenticationFailed
+from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from rest_framework.permissions import IsAuthenticated, BasePermission
 from rest_framework.response import Response
 
+from core.mixins import ActorContextMixin, SoftDeleteMixin
 from core.swagger import DETAIL_RESPONSE_SERIALIZER, extend_schema_with_examples, request_example, response_example
-from core.utils import get_actor_email
 from .models import User
 from .serializers import (
     UserSerializer,
@@ -99,7 +99,7 @@ class IsSystemAdmin(BasePermission):
         responses={200: OpenApiResponse(description='User deactivated')},
     ),
 )
-class UserViewSet(viewsets.ModelViewSet):
+class UserViewSet(ActorContextMixin, SoftDeleteMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing system users (staff members).
     Only admins can manage other users.
@@ -110,6 +110,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
     queryset = User.objects.filter(is_active=True).order_by('first_name', 'last_name')
     serializer_class = UserSerializer
+    soft_delete_response_message = 'User deactivated successfully.'
     search_fields = ['first_name', 'last_name', 'email', 'role']
     ordering_fields = ['first_name', 'last_name', 'created_at', 'role']
     filterset_fields = ['role', 'is_active', 'is_staff']
@@ -138,32 +139,22 @@ class UserViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         user = serializer.save()
-        actor_email = get_actor_email(self.request.user)
+        actor_email = self.actor_email()
         logger.info(
             f'User created by={actor_email} user_id={user.pk} email={user.email} role={user.role}')
 
-    def perform_destroy(self, instance):
-        """Soft delete — deactivate instead of removing from DB."""
+    def perform_soft_delete(self, instance):
         if instance.pk == self.request.user.pk:
-            from rest_framework.exceptions import ValidationError
             raise ValidationError(
                 {'detail': 'You cannot deactivate your own account.'},
                 code='self_deactivation',
             )
-        instance.is_active = False
-        instance.save(update_fields=['is_active'])
-        actor_email = get_actor_email(self.request.user)
+        super().perform_soft_delete(instance)
+        actor_email = self.actor_email()
         logger.info(
             f'User deactivated by={actor_email} user_id={instance.pk} '
             f'email={instance.email} role={instance.role}')
 
-    def destroy(self, request, *args, **kwargs):
-        """Override to return 200 with message instead of 204 (since it's a soft delete)."""
-        self.perform_destroy(self.get_object())
-        return Response(
-            {'detail': 'User deactivated successfully.'},
-            status=status.HTTP_200_OK,
-        )
 
     @extend_schema_with_examples(
         tags=['Users'],
@@ -194,7 +185,7 @@ class UserViewSet(viewsets.ModelViewSet):
     )
     @action(detail=False, methods=['get'], url_path='me')
     def me(self, request):
-        actor_email = get_actor_email(request.user)
+        actor_email = self.actor_email(request)
         logger.info(f'Profile requested by user_id={request.user.pk} email={actor_email}')
         return Response(UserSerializer(request.user).data)
 
@@ -219,7 +210,7 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer = UserUpdateSerializer(request.user, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        actor_email = get_actor_email(request.user)
+        actor_email = self.actor_email(request)
         logger.info(f'Profile updated by user_id={request.user.pk} email={actor_email}')
         return Response(UserSerializer(request.user).data)
 
@@ -262,12 +253,12 @@ class UserViewSet(viewsets.ModelViewSet):
         if not user.check_password(serializer.validated_data['current_password']):
             logger.info(
                 f'Password change rejected for user_id={user.pk} '
-                f'email={get_actor_email(user)} reason=incorrect_current_password')
+                f'email={self.actor_email(request)} reason=incorrect_current_password')
             raise AuthenticationFailed(
                 detail='Current password is incorrect.',
                 code='incorrect_password',
             )
         user.set_password(serializer.validated_data['new_password'])
         user.save(update_fields=['password'])
-        logger.info(f'Password changed for user_id={user.pk} email={get_actor_email(user)}')
+        logger.info(f'Password changed for user_id={user.pk} email={self.actor_email(request)}')
         return Response({'detail': 'Password updated successfully.'})

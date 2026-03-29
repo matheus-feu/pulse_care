@@ -8,8 +8,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from core.exceptions import Conflict
+from core.mixins import ActorContextMixin
 from core.swagger import extend_schema_with_examples, request_example, response_example
-from core.utils import get_actor_email
 from .filters import AppointmentFilter
 from .models import Appointment
 from .serializers import (
@@ -104,7 +104,7 @@ logger = logging.getLogger(__name__)
         responses={204: OpenApiResponse(description='Appointment deleted')},
     ),
 )
-class AppointmentViewSet(viewsets.ModelViewSet):
+class AppointmentViewSet(ActorContextMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing appointments.
     Supports filtering by status, doctor, patient, type and date range.
@@ -134,7 +134,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         appointment = serializer.save(created_by=self.request.user)
-        actor_email = get_actor_email(self.request.user)
+        actor_email = self.actor_email()
         logger.info(
             f'Appointment created by={actor_email} appointment_id={appointment.pk} '
             f'patient_id={appointment.patient_id} doctor_id={appointment.doctor_id}')
@@ -144,7 +144,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
             raise Conflict(
                 detail=f'Cannot delete an appointment with status "{instance.status}".',
             )
-        actor_email = get_actor_email(self.request.user)
+        actor_email = self.actor_email()
         logger.info(
             f'Appointment deleted by={actor_email} appointment_id={instance.pk}')
         super().perform_destroy(instance)
@@ -201,7 +201,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
         serializer = AppointmentStatusSerializer(appointment, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        actor_email = get_actor_email(request.user)
+        actor_email = self.actor_email(request)
         logger.info(
             f'Appointment status updated by={actor_email} appointment_id={appointment.pk} '
             f'from={previous_status} to={appointment.status}')
@@ -248,7 +248,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
     def today(self, request):
         """Return every appointment scheduled for today (local timezone)."""
         queryset = self.get_queryset().filter(scheduled_at__date=timezone.localdate())
-        actor_email = get_actor_email(request.user)
+        actor_email = self.actor_email(request)
         logger.info(
             f'Today appointments requested by user_id={request.user.pk} '
             f'email={actor_email} total={queryset.count()}')
@@ -295,7 +295,7 @@ class AppointmentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN,
             )
         queryset = self.get_queryset().filter(doctor=request.user)
-        actor_email = get_actor_email(request.user)
+        actor_email = self.actor_email(request)
         logger.info(
             f'My appointments requested by doctor_id={request.user.pk} '
             f'email={actor_email} total={queryset.count()}')

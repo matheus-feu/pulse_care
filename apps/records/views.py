@@ -1,5 +1,6 @@
 import logging
 
+from django.db.models import Count
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse
 from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
@@ -8,8 +9,8 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from core.mixins import ActorContextMixin
 from core.swagger import extend_schema_with_examples, request_example, response_example
-from core.utils import get_actor_email
 from .filters import MedicalRecordFilter
 from .models import MedicalRecord, RecordAttachment
 from .serializers import (
@@ -86,7 +87,7 @@ logger = logging.getLogger(__name__)
         responses={204: OpenApiResponse(description='Record deleted')},
     ),
 )
-class MedicalRecordViewSet(viewsets.ModelViewSet):
+class MedicalRecordViewSet(ActorContextMixin, viewsets.ModelViewSet):
     """
     ViewSet for managing medical records.
     Only doctors should create/update; all authenticated staff can read.
@@ -112,12 +113,16 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
         return MedicalRecordSerializer
 
     def get_queryset(self):
-        return (
+        queryset = (
             MedicalRecord.objects
             .select_related('patient', 'doctor', 'appointment')
-            .prefetch_related('attachments')
             .order_by('-created_at')
         )
+
+        if self.action == 'list':
+            return queryset.annotate(attachments_count=Count('attachments', distinct=True))
+
+        return queryset.prefetch_related('attachments')
 
     def perform_create(self, serializer):
         user = self.request.user
@@ -127,7 +132,7 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
                 code='doctor_only',
             )
         record = serializer.save()
-        actor_email = get_actor_email(user)
+        actor_email = self.actor_email()
         logger.info(
             f'Medical record created by={actor_email} record_id={record.pk} '
             f'patient_id={record.patient_id} doctor_id={record.doctor_id}')
@@ -186,7 +191,7 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
         serializer = RecordAttachmentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         attachment = serializer.save(record=record, uploaded_by=request.user)
-        actor_email = get_actor_email(request.user)
+        actor_email = self.actor_email(request)
         logger.info(
             f'Record attachment uploaded by={actor_email} record_id={record.pk} '
             f'attachment_id={attachment.pk} filename={attachment.file.name}')
@@ -229,7 +234,7 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
         """List all file attachments linked to this medical record."""
         record = self.get_object()
         attachments = record.attachments.all()
-        actor_email = get_actor_email(request.user)
+        actor_email = self.actor_email(request)
         logger.info(
             f'Record attachments listed by={actor_email} record_id={record.pk} '
             f'attachments_count={attachments.count()}')
