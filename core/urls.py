@@ -18,20 +18,69 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import path, include
-from drf_spectacular.utils import extend_schema
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, SpectacularRedocView
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-TokenObtainPairView = extend_schema(
+from core.swagger import (
+    AUTH_TOKEN_REQUEST_SERIALIZER,
+    AUTH_TOKEN_RESPONSE_SERIALIZER,
+    TOKEN_REFRESH_REQUEST_SERIALIZER,
+    TOKEN_REFRESH_RESPONSE_SERIALIZER,
+    extend_schema_with_examples,
+    request_example,
+    response_example,
+)
+
+TokenObtainPairView = extend_schema_with_examples(
     tags=['Auth'],
     summary='Obtain JWT access & refresh tokens',
     description='Authenticate with **email + password** and receive a JWT access token (8 h) and refresh token (7 d).',
+    request=AUTH_TOKEN_REQUEST_SERIALIZER,
+    responses={200: AUTH_TOKEN_RESPONSE_SERIALIZER},
+    request_examples=[
+        request_example(
+            'Login request',
+            {
+                'email': 'email@email.com',
+                'password': 'Senha@123',
+            },
+        ),
+    ],
+    response_examples=[
+        response_example(
+            'Login success',
+            {
+                'refresh': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh-token',
+                'access': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.access-token',
+            },
+            status_codes=200,
+        ),
+    ],
 )(TokenObtainPairView)
 
-TokenRefreshView = extend_schema(
+TokenRefreshView = extend_schema_with_examples(
     tags=['Auth'],
     summary='Refresh the JWT access token',
     description='Exchange a valid refresh token for a new access token.',
+    request=TOKEN_REFRESH_REQUEST_SERIALIZER,
+    responses={200: TOKEN_REFRESH_RESPONSE_SERIALIZER},
+    request_examples=[
+        request_example(
+            'Refresh request',
+            {
+                'refresh': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh-token',
+            },
+        ),
+    ],
+    response_examples=[
+        response_example(
+            'Refresh success',
+            {
+                'access': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.new-access-token',
+            },
+            status_codes=200,
+        ),
+    ],
 )(TokenRefreshView)
 
 urlpatterns = [

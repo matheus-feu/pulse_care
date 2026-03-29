@@ -34,9 +34,10 @@ services:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.13.4
     container_name: pulse_care_elasticsearch
     restart: unless-stopped
+    env_file: .env
     environment:
       - discovery.type=single-node
-      - xpack.security.enabled=false
+      - xpack.security.enabled=true
       - xpack.security.http.ssl.enabled=false
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
     volumes:
@@ -44,7 +45,11 @@ services:
     ports:
       - "9200:9200"
     healthcheck:
-      test: ["CMD-SHELL", "curl -s http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"]
+      test:
+        [
+          "CMD-SHELL",
+          "curl -s -u ${ELASTIC_USER}:${ELASTIC_PASSWORD} http://localhost:9200/_cluster/health | grep -qE '\"status\":\"(green|yellow)\"'"
+        ]
       interval: 20s
       timeout: 10s
       retries: 10
@@ -56,12 +61,12 @@ services:
     restart: unless-stopped
     environment:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
-      XPACK_SECURITY_ENABLED: "false"
-    ports:
-      - "5601:5601"
+      ELASTICSEARCH_SERVICEACCOUNTTOKEN: ${KIBANA_SERVICE_TOKEN}
     depends_on:
       elasticsearch:
         condition: service_healthy
+    ports:
+      - "5601:5601"
 
   apm_server:
     image: docker.elastic.co/apm/apm-server:8.13.4
@@ -72,8 +77,12 @@ services:
       -E apm-server.host=0.0.0.0:8200
       -E output.elasticsearch.hosts=["elasticsearch:9200"]
       -E output.elasticsearch.protocol=http
+      -E output.elasticsearch.username=${ELASTIC_USER}
+      -E output.elasticsearch.password=${ELASTIC_PASSWORD}
       -E apm-server.kibana.enabled=true
       -E apm-server.kibana.host=http://kibana:5601
+      -E apm-server.kibana.username=${ELASTIC_USER}
+      -E apm-server.kibana.password=${ELASTIC_PASSWORD}
       -E apm-server.auth.anonymous.enabled=true
       -E apm-server.data_streams.wait_for_integration=false
     ports:
@@ -103,6 +112,7 @@ services:
       DB_HOST: db
       CELERY_BROKER_URL: redis://redis:6379/0
       APM_SERVER_URL: http://apm_server:8200
+      ELASTICSEARCH_URL: http://${ELASTIC_USER}:${ELASTIC_PASSWORD}@elasticsearch:9200
     depends_on:
       db:
         condition: service_healthy
@@ -124,6 +134,7 @@ services:
       DB_HOST: db
       CELERY_BROKER_URL: redis://redis:6379/0
       APM_SERVER_URL: http://apm_server:8200
+      ELASTICSEARCH_URL: http://${ELASTIC_USER}:${ELASTIC_PASSWORD}@elasticsearch:9200
     depends_on:
       db:
         condition: service_healthy
@@ -145,6 +156,7 @@ services:
       DB_HOST: db
       CELERY_BROKER_URL: redis://redis:6379/0
       APM_SERVER_URL: http://apm_server:8200
+      ELASTICSEARCH_URL: http://${ELASTIC_USER}:${ELASTIC_PASSWORD}@elasticsearch:9200
     depends_on:
       db:
         condition: service_healthy

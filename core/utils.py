@@ -3,7 +3,7 @@ from datetime import date
 
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
-from django.core.mail import send_mail
+from django.core.mail import get_connection, send_mail
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -29,30 +29,29 @@ def send_notification_email(
         log_context: str = '',
 ) -> None:
     """
-    Send an email using Django's send_mail with standardised logging.
-
-    Raises the original exception on failure (so Celery can auto-retry).
-
-    Args:
-        subject: Email subject line.
-        body: Plain-text email body.
-        recipient_list: List of recipient email addresses.
-        log_context: Short string appended to log messages for traceability
-                     (e.g. "appointment_id=42").
+    Send an email using Django's send_mail with standardized logging.
     """
     try:
+        connection = get_connection(
+            backend='django.core.mail.backends.smtp.EmailBackend',
+            host=settings.EMAIL_HOST,
+            port=settings.EMAIL_PORT,
+            username=settings.EMAIL_HOST_USER,
+            password=settings.EMAIL_HOST_PASSWORD,
+            use_tls=settings.EMAIL_USE_TLS,
+            fail_silently=False,
+        )
         send_mail(
             subject=subject,
             message=body,
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=recipient_list,
+            connection=connection,
             fail_silently=False,
         )
     except Exception:
         logger.exception(f'Email send error {log_context}')
         raise
-
-    logger.info('Email sent to=%s %s', recipient_list, log_context)
 
 
 def format_datetime_br(dt) -> str:

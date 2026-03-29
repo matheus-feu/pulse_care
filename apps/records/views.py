@@ -8,6 +8,7 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from core.swagger import extend_schema_with_examples, request_example, response_example
 from core.utils import get_actor_email
 from .filters import MedicalRecordFilter
 from .models import MedicalRecord, RecordAttachment
@@ -23,7 +24,7 @@ logger = logging.getLogger(__name__)
 @extend_schema_view(
     list=extend_schema(tags=['Records'], summary='List medical records'),
     retrieve=extend_schema(tags=['Records'], summary='Retrieve a medical record'),
-    create=extend_schema(
+    create=extend_schema_with_examples(
         tags=['Records'],
         summary='Create a new medical record',
         responses={
@@ -31,6 +32,51 @@ logger = logging.getLogger(__name__)
             400: OpenApiResponse(description='Validation error'),
             403: OpenApiResponse(description='Only doctors can create records'),
         },
+        request_examples=[
+            request_example(
+                'Create medical record',
+                {
+                    'patient': 15,
+                    'doctor': 7,
+                    'appointment': 42,
+                    'chief_complaint': 'Headache and dizziness',
+                    'history_of_present_illness': 'Symptoms started 2 days ago after stress episode.',
+                    'physical_examination': 'No focal neurological deficits.',
+                    'blood_pressure': '120/80',
+                    'heart_rate': 78,
+                    'temperature': 36.7,
+                    'weight': 68.5,
+                    'height': 1.68,
+                    'diagnosis': 'Tension headache',
+                    'icd10_code': 'G44.2',
+                    'prescription': 'Dipyrone 1g every 8h if needed',
+                    'treatment_plan': 'Hydration, rest, and follow-up in 7 days',
+                    'notes': 'Patient oriented about warning signs',
+                },
+            ),
+        ],
+        response_examples=[
+            response_example(
+                'Medical record created',
+                {
+                    'id': 13,
+                    'patient': 15,
+                    'doctor': 7,
+                    'appointment': 42,
+                    'chief_complaint': 'Headache and dizziness',
+                    'diagnosis': 'Tension headache',
+                    'icd10_code': 'G44.2',
+                    'prescription': 'Dipyrone 1g every 8h if needed',
+                    'treatment_plan': 'Hydration, rest, and follow-up in 7 days',
+                    'notes': 'Patient oriented about warning signs',
+                    'bmi': 24.27,
+                    'attachments': [],
+                    'created_at': '2026-03-29T12:00:00-03:00',
+                    'updated_at': '2026-03-29T12:00:00-03:00',
+                },
+                status_codes=201,
+            ),
+        ],
     ),
     update=extend_schema(tags=['Records'], summary='Update a medical record'),
     partial_update=extend_schema(tags=['Records'], summary='Partially update a medical record'),
@@ -95,7 +141,7 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
             )
         serializer.save()
 
-    @extend_schema(
+    @extend_schema_with_examples(
         tags=['Records'],
         summary='Upload an attachment to a medical record',
         request=RecordAttachmentSerializer,
@@ -103,6 +149,30 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
             201: RecordAttachmentSerializer,
             400: OpenApiResponse(description='Invalid file (size/type)'),
         },
+        request_examples=[
+            request_example(
+                'Upload attachment metadata',
+                {
+                    'attachment_type': 'exam',
+                    'description': 'Complete blood count result',
+                },
+                description='Send these fields together with a multipart file field named "file".',
+            ),
+        ],
+        response_examples=[
+            response_example(
+                'Attachment uploaded',
+                {
+                    'id': 81,
+                    'file': '/media/records/attachments/cbc_result_2026_03_29.pdf',
+                    'attachment_type': 'exam',
+                    'description': 'Complete blood count result',
+                    'uploaded_by': 'Gregory House (Doctor)',
+                    'uploaded_at': '2026-03-29T12:10:00-03:00',
+                },
+                status_codes=201,
+            ),
+        ],
     )
     @action(
         detail=True,
@@ -125,10 +195,34 @@ class MedicalRecordViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
-    @extend_schema(
+    @extend_schema_with_examples(
         tags=['Records'],
         summary='List attachments of a medical record',
         responses={200: RecordAttachmentSerializer(many=True)},
+        response_examples=[
+            response_example(
+                'Record attachments list',
+                [
+                    {
+                        'id': 81,
+                        'file': '/media/records/attachments/cbc_result_2026_03_29.pdf',
+                        'attachment_type': 'exam',
+                        'description': 'Complete blood count result',
+                        'uploaded_by': 'Gregory House (Doctor)',
+                        'uploaded_at': '2026-03-29T12:10:00-03:00',
+                    },
+                    {
+                        'id': 82,
+                        'file': '/media/records/attachments/prescription_2026_03_29.pdf',
+                        'attachment_type': 'prescription',
+                        'description': 'Signed prescription',
+                        'uploaded_by': 'Gregory House (Doctor)',
+                        'uploaded_at': '2026-03-29T12:12:00-03:00',
+                    },
+                ],
+                status_codes=200,
+            ),
+        ],
     )
     @action(detail=True, methods=['get'], url_path='attachments')
     def list_attachments(self, request, pk=None):

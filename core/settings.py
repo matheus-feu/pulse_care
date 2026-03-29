@@ -187,15 +187,17 @@ CELERY_TASK_TIME_LIMIT = config('CELERY_TASK_TIME_LIMIT', default=1800, cast=int
 CELERY_TASK_SOFT_TIME_LIMIT = config('CELERY_TASK_SOFT_TIME_LIMIT', default=1500, cast=int)
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
-EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
 EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
 EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
 EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
 EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
 EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
-DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='PulseCare <noreply@pulsecare.com>')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL')
 
 APPOINTMENT_REMINDER_HOURS_BEFORE = config('APPOINTMENT_REMINDER_HOURS_BEFORE', default=24, cast=int)
+PASSWORD_RESET_OTP_TTL_SECONDS = config('PASSWORD_RESET_OTP_TTL_SECONDS', default=300, cast=int)
+PASSWORD_RESET_OTP_RESEND_SECONDS = config('PASSWORD_RESET_OTP_RESEND_SECONDS', default=60, cast=int)
+PASSWORD_RESET_OTP_MAX_ATTEMPTS = config('PASSWORD_RESET_OTP_MAX_ATTEMPTS', default=5, cast=int)
 
 ELASTIC_APM = {
     'SERVICE_NAME': config('APM_SERVICE_NAME', default='pulse-care-api'),
@@ -228,16 +230,6 @@ LOGGING = {
             'datefmt': '%Y-%m-%d %H:%M:%S',
         },
     },
-
-    'filters': {
-        'require_debug_true': {
-            '()': 'django.utils.log.RequireDebugTrue',
-        },
-        'require_debug_false': {
-            '()': 'django.utils.log.RequireDebugFalse',
-        },
-    },
-
     'handlers': {
         'console': {
             'level': 'DEBUG',
@@ -251,7 +243,7 @@ LOGGING = {
     },
     'loggers': {
         'django': {
-            'handlers': ['console'],
+            'handlers': ['console',],
             'level': LOG_LEVEL,
             'propagate': False,
         },
@@ -260,25 +252,14 @@ LOGGING = {
             'level': 'WARNING',
             'propagate': False,
         },
-        # 'django.db.backends': {
-        #     'handlers': ['console'],
-        #     'level': 'DEBUG',
-        #     'filters': ['require_debug_true'],
-        #     'propagate': False,
-        # },
         'apps': {
             'handlers': ['console', 'elasticapm'],
             'level': 'DEBUG',
             'propagate': False,
         },
         'api.requests': {
-            'handlers': ['console'],
+            'handlers': ['console', 'elasticapm'],
             'level': LOG_LEVEL,
-            'propagate': False,
-        },
-        'celery': {
-            'handlers': ['console'],
-            'level': CELERY_LOG_LEVEL,
             'propagate': False,
         },
         'celery.task': {

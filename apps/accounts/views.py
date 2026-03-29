@@ -1,12 +1,19 @@
 import logging
 
-from drf_spectacular.utils import extend_schema, OpenApiResponse
+from drf_spectacular.utils import OpenApiResponse
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.users.serializers import UserSerializer
+from core.swagger import (
+    DETAIL_RESPONSE_SERIALIZER,
+    PASSWORD_RESET_REQUEST_RESPONSE_SERIALIZER,
+    extend_schema_with_examples,
+    request_example,
+    response_example,
+)
 from core.utils import send_notification_email
 from .serializers import (
     RegisterSerializer,
@@ -22,7 +29,7 @@ class RegisterView(APIView):
 
     permission_classes = [AllowAny]
 
-    @extend_schema(
+    @extend_schema_with_examples(
         tags=['Accounts'],
         summary='Register a new account',
         description=(
@@ -34,6 +41,43 @@ class RegisterView(APIView):
             201: UserSerializer,
             400: OpenApiResponse(description='Validation error'),
         },
+        request_examples=[
+            request_example(
+                'Receptionist registration',
+                {
+                    'username': 'matheus.feu',
+                    'email': 'email@email.com',
+                    'first_name': 'Matheus',
+                    'last_name': 'Feu',
+                    'phone': '11999999999',
+                    'password': 'StrongPass@123',
+                    'confirm_password': 'StrongPass@123',
+                },
+            ),
+        ],
+        response_examples=[
+            response_example(
+                'Registration success',
+                {
+                    'id': 12,
+                    'username': 'matheus',
+                    'email': 'matheus@email.com',
+                    'first_name': 'Matheus',
+                    'last_name': 'Feulo',
+                    'full_name': 'Matheus Feulo',
+                    'role': 'receptionist',
+                    'license_number': None,
+                    'specialty': None,
+                    'phone': '11999999999',
+                    'avatar': None,
+                    'is_active': True,
+                    'is_staff': False,
+                    'created_at': '2026-03-29T02:10:04-03:00',
+                    'updated_at': '2026-03-29T02:10:04-03:00',
+                },
+                status_codes=201,
+            ),
+        ],
     )
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
@@ -48,76 +92,114 @@ class RegisterView(APIView):
 
 class PasswordResetRequestView(APIView):
     """
-    Public endpoint — request a password reset link.
+    Public endpoint — request a password reset OTP (One Time Password).
     Always returns 200 (doesn't reveal if the email exists).
     """
 
     permission_classes = [AllowAny]
 
-    @extend_schema(
+    @extend_schema_with_examples(
         tags=['Accounts'],
-        summary='Request password reset',
+        summary='Request password reset OTP',
         description=(
-                'Send a password reset e-mail to the given address. '
+                'Send a one-time password (OTP) to the given e-mail address. '
                 'The response is always 200 to avoid user enumeration.'
         ),
         request=PasswordResetRequestSerializer,
-        responses={200: OpenApiResponse(description='Reset e-mail sent (if account exists)')},
+        responses={
+            200: OpenApiResponse(
+                response=PASSWORD_RESET_REQUEST_RESPONSE_SERIALIZER,
+                description='Reset OTP sent (if account exists)',
+            ),
+        },
+        request_examples=[
+            request_example(
+                'Password reset request',
+                {
+                    'email': 'email@email.com',
+                },
+            ),
+        ],
+        response_examples=[
+            response_example(
+                'Password reset response',
+                {
+                    'otp': '302321',
+                },
+                status_codes=200,
+            ),
+        ],
     )
     def post(self, request):
         serializer = PasswordResetRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        reset_data = serializer.get_reset_data()
+        response: dict = {}
+
+        reset_data = serializer.save()
         if reset_data:
             user = reset_data['user']
-            uid = reset_data['uid']
-            token = reset_data['token']
+            otp = reset_data['otp']
+            response['otp'] = otp
 
-            # In production, send a link to the frontend reset page.
-            # For now, include uid + token in the e-mail body.
-            frontend_url = f'http://localhost:3000/reset-password?uid={uid}&token={token}'
+            try:
+                send_notification_email(
+                    subject='Password reset',
+                    body=(
+                        f'Hello, {user.first_name}!\n\n'
+                        f'Use the OTP below to reset your password:\n\n'
+                        f'  OTP: {otp}\n\n'
+                        f'This code expires in a few minutes.\n'
+                        f'If you did not request this, ignore this e-mail.\n\n'
+                        f'PulseCare Team'
+                    ),
+                    recipient_list=[user.email],
+                    log_context=f'accounts.password_reset_request user_id={user.pk}',
+                )
+                logger.info(f'Password reset OTP sent user_id={user.pk} email={user.email}')
+            except Exception:
+                logger.exception(f'Password reset OTP delivery failed user_id={user.pk} email={user.email}')
 
-            send_notification_email(
-                subject='[PulseCare] Password reset request',
-                body=(
-                    f'Hello, {user.first_name}!\n\n'
-                    f'We received a request to reset your password.\n\n'
-                    f'Use the link below to set a new password:\n'
-                    f'{frontend_url}\n\n'
-                    f'Or use the following values via the API:\n'
-                    f'  uid   : {uid}\n'
-                    f'  token : {token}\n\n'
-                    f'If you did not request this, just ignore this e-mail.\n\n'
-                    f'PulseCare Team'
-                ),
-                recipient_list=[user.email],
-                log_context=f'accounts.password_reset_request user_id={user.pk}',
-            )
-            logger.info(f'Password reset e-mail sent to user_id={user.pk} email={user.email}')
-        else:
-            logger.info(f'Password reset requested for unknown email={serializer.validated_data["email"]}')
-
-        return Response(
-            {'detail': 'If an account with this email exists, a reset link has been sent.'},
-            status=status.HTTP_200_OK,
-        )
+        return Response(response, status=status.HTTP_200_OK)
 
 
 class PasswordResetConfirmView(APIView):
-    """Public endpoint — set a new password with uid + token."""
+    """Public endpoint — set a new password with e-mail + OTP (One Time Password)."""
 
     permission_classes = [AllowAny]
 
-    @extend_schema(
+    @extend_schema_with_examples(
         tags=['Accounts'],
-        summary='Confirm password reset',
-        description='Validate the uid + token and set a new password.',
+        summary='Confirm password reset with OTP',
+        description='Validate e-mail + OTP and set a new password.',
         request=PasswordResetConfirmSerializer,
         responses={
-            200: OpenApiResponse(description='Password reset successfully'),
-            400: OpenApiResponse(description='Invalid/expired token or validation error'),
+            200: OpenApiResponse(
+                response=DETAIL_RESPONSE_SERIALIZER,
+                description='Password reset successfully',
+            ),
+            400: OpenApiResponse(description='Invalid/expired OTP or validation error'),
         },
+        request_examples=[
+            request_example(
+                'Password reset confirmation',
+                {
+                    'email': 'email@email.com',
+                    'otp': '302321',
+                    'new_password': 'NovaSenha@123',
+                    'confirm_new_password': 'NovaSenha@123',
+                },
+            ),
+        ],
+        response_examples=[
+            response_example(
+                'Password reset success',
+                {
+                    'detail': 'Password has been reset successfully. You can now log in.',
+                },
+                status_codes=200,
+            ),
+        ],
     )
     def post(self, request):
         serializer = PasswordResetConfirmSerializer(data=request.data)

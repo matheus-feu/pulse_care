@@ -114,7 +114,7 @@ def send_appointment_confirmation(self, appointment_id: int) -> dict:
         log_context=f'appointments.send_appointment_confirmation appointment_id={appointment_id}',
     )
 
-    logger.info('Task success appointments.send_appointment_confirmation appointment_id=%s', appointment_id)
+    logger.info(f'Task success appointments.send_appointment_confirmatios appointment_id={appointment_id} email={patient.email}')
     return {'status': 'sent', 'appointment_id': appointment_id}
 
 

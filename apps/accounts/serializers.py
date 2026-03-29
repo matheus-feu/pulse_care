@@ -1,10 +1,12 @@
+import hashlib
 import logging
+import random
+from hmac import compare_digest
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from django.contrib.auth.tokens import default_token_generator
-from django.utils.encoding import force_bytes, force_str
-from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.core.cache import cache
 from rest_framework import serializers
 
 User = get_user_model()
@@ -67,6 +69,22 @@ class RegisterSerializer(serializers.ModelSerializer):
 class PasswordResetRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()
 
+    def _otp_key(self, email):
+        return f'accounts:password-reset:otp:{email}'
+
+    def _attempt_key(self, email):
+        return f'accounts:password-reset:attempts:{email}'
+
+    def _cooldown_key(self, email):
+        return f'accounts:password-reset:cooldown:{email}'
+
+    def _otp_hash(self, email, otp):
+        base = f'{email}:{otp}:{settings.SECRET_KEY}'
+        return hashlib.sha256(base.encode('utf-8')).hexdigest()
+
+    def _generate_otp(self):
+        return f'{random.SystemRandom().randint(0, 999999):06d}'
+
     def validate_email(self, value):
         """
         Always succeed (don't reveal whether the email exists).
@@ -75,24 +93,61 @@ class PasswordResetRequestSerializer(serializers.Serializer):
         self._user = User.objects.filter(email__iexact=value, is_active=True).first()
         return value.lower()
 
-    def get_reset_data(self):
-        """Return uid + token if user was found, else None."""
+    def save(self):
+        """Generate and store OTP for active users while keeping anti-enumeration behavior."""
+        email = self.validated_data['email']
         user = getattr(self, '_user', None)
         if user is None:
             return None
-        uid = urlsafe_base64_encode(force_bytes(user.pk))
-        token = default_token_generator.make_token(user)
-        return {'uid': uid, 'token': token, 'user': user}
+
+        if cache.get(self._cooldown_key(email)):
+            logger.info(f'Password reset OTP requested within cooldown period email={email}')
+            return {'user': user, 'otp': None, 'throttled': True, 'throttled_email': email}
+
+        otp = self._generate_otp()
+        otp_hash = self._otp_hash(email, otp)
+
+        cache.set(
+            self._otp_key(email),
+            otp_hash,
+            timeout=getattr(settings, 'PASSWORD_RESET_OTP_TTL_SECONDS', 300),
+        )
+        cache.delete(self._attempt_key(email))
+        cache.set(
+            self._cooldown_key(email),
+            '1',
+            timeout=getattr(settings, 'PASSWORD_RESET_OTP_RESEND_SECONDS', 60),
+        )
+
+        return {'user': user, 'otp': otp, 'throttled': False}
 
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
-    uid = serializers.CharField()
-    token = serializers.CharField()
+    email = serializers.EmailField()
+    otp = serializers.CharField(min_length=6, max_length=6)
     new_password = serializers.CharField(
         write_only=True,
         validators=[validate_password],
     )
     confirm_new_password = serializers.CharField(write_only=True)
+
+    def _otp_key(self, email):
+        return f'accounts:password-reset:otp:{email}'
+
+    def _attempt_key(self, email):
+        return f'accounts:password-reset:attempts:{email}'
+
+    def _otp_hash(self, email, otp):
+        base = f'{email}:{otp}:{settings.SECRET_KEY}'
+        return hashlib.sha256(base.encode('utf-8')).hexdigest()
+
+    def validate_email(self, value):
+        return value.lower()
+
+    def validate_otp(self, value):
+        if not value.isdigit():
+            raise serializers.ValidationError('OTP must contain only digits.', code='invalid_otp')
+        return value
 
     def validate(self, attrs):
         if attrs['new_password'] != attrs['confirm_new_password']:
@@ -101,26 +156,47 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
                 code='password_mismatch',
             )
 
-        try:
-            user_id = force_str(urlsafe_base64_decode(attrs['uid']))
-            user = User.objects.get(pk=user_id, is_active=True)
-        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        email = attrs['email']
+        max_attempts = getattr(settings, 'PASSWORD_RESET_OTP_MAX_ATTEMPTS', 5)
+        current_attempts = cache.get(self._attempt_key(email), 0)
+        if current_attempts >= max_attempts:
             raise serializers.ValidationError(
-                {'uid': 'Invalid or expired reset link.'},
-                code='invalid_uid',
+                {'otp': 'Too many invalid attempts. Request a new OTP.'},
+                code='otp_attempts_exceeded',
             )
 
-        if not default_token_generator.check_token(user, attrs['token']):
+        stored_hash = cache.get(self._otp_key(email))
+        provided_hash = self._otp_hash(email, attrs['otp'])
+
+        if not stored_hash or not compare_digest(stored_hash, provided_hash):
+            cache.set(
+                self._attempt_key(email),
+                current_attempts + 1,
+                timeout=getattr(settings, 'PASSWORD_RESET_OTP_TTL_SECONDS', 300),
+            )
             raise serializers.ValidationError(
-                {'token': 'Invalid or expired reset token.'},
-                code='invalid_token',
+                {'otp': 'Invalid or expired OTP.'},
+                code='invalid_otp',
+            )
+
+        try:
+            user = User.objects.get(email__iexact=email, is_active=True)
+        except User.DoesNotExist:
+            raise serializers.ValidationError(
+                {'otp': 'Invalid or expired OTP.'},
+                code='invalid_otp',
             )
 
         attrs['user'] = user
         return attrs
 
     def save(self):
+        email = self.validated_data['email']
         user = self.validated_data['user']
         user.set_password(self.validated_data['new_password'])
         user.save(update_fields=['password'])
+
+        cache.delete(self._otp_key(email))
+        cache.delete(self._attempt_key(email))
+
         return user

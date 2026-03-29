@@ -6,6 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
+from core.swagger import extend_schema_with_examples, request_example, response_example
 from core.utils import get_actor_email
 from .filters import PatientFilter
 from .models import Patient
@@ -17,13 +18,51 @@ logger = logging.getLogger(__name__)
 @extend_schema_view(
     list=extend_schema(tags=['Patients'], summary='List patients'),
     retrieve=extend_schema(tags=['Patients'], summary='Retrieve a patient'),
-    create=extend_schema(
+    create=extend_schema_with_examples(
         tags=['Patients'],
         summary='Register a new patient',
         responses={
             201: PatientSerializer,
             400: OpenApiResponse(description='Validation error (e.g. invalid CPF, duplicate)'),
         },
+        request_examples=[
+            request_example(
+                'Create patient',
+                {
+                    'first_name': 'Maria',
+                    'last_name': 'Silva',
+                    'date_of_birth': '1992-04-12',
+                    'gender': 'female',
+                    'cpf': '12345678901',
+                    'phone': '11988887777',
+                    'email': 'maria.silva@email.com',
+                    'blood_type': 'O+',
+                },
+            ),
+        ],
+        response_examples=[
+            response_example(
+                'Patient created',
+                {
+                    'id': 15,
+                    'first_name': 'Maria',
+                    'last_name': 'Silva',
+                    'full_name': 'Maria Silva',
+                    'date_of_birth': '1992-04-12',
+                    'age': 33,
+                    'gender': 'female',
+                    'cpf': '123.456.789-01',
+                    'phone': '11988887777',
+                    'email': 'maria.silva@email.com',
+                    'blood_type': 'O+',
+                    'is_active': True,
+                    'created_by': 'Admin PulseCare (Administrator)',
+                    'created_at': '2026-03-29T10:30:00-03:00',
+                    'updated_at': '2026-03-29T10:30:00-03:00',
+                },
+                status_codes=201,
+            ),
+        ],
     ),
     update=extend_schema(tags=['Patients'], summary='Update a patient'),
     partial_update=extend_schema(tags=['Patients'], summary='Partially update a patient'),
@@ -84,10 +123,56 @@ class PatientViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK,
         )
 
-    @extend_schema(
+    @extend_schema_with_examples(
         tags=['Patients'],
         summary='Full clinical history of a patient',
         responses={200: OpenApiResponse(description='Appointments and medical records')},
+        response_examples=[
+            response_example(
+                'Patient history result',
+                {
+                    'patient': {
+                        'id': 15,
+                        'full_name': 'Maria Silva',
+                        'cpf': '123.456.789-01',
+                        'date_of_birth': '1992-04-12',
+                        'age': 33,
+                        'gender': 'female',
+                        'phone': '11988887777',
+                        'blood_type': 'O+',
+                        'is_active': True,
+                    },
+                    'appointments': [
+                        {
+                            'id': 42,
+                            'patient': 15,
+                            'patient_name': 'Maria Silva',
+                            'doctor': 7,
+                            'doctor_name': 'Gregory House',
+                            'scheduled_at': '2026-03-28T14:30:00-03:00',
+                            'duration_minutes': 30,
+                            'appointment_type': 'consultation',
+                            'status': 'completed',
+                            'reason': 'Routine checkup',
+                        }
+                    ],
+                    'medical_records': [
+                        {
+                            'id': 13,
+                            'patient': 15,
+                            'patient_name': 'Maria Silva',
+                            'doctor': 7,
+                            'doctor_name': 'Gregory House',
+                            'chief_complaint': 'Headache',
+                            'diagnosis': 'Tension headache',
+                            'icd10_code': 'G44.2',
+                            'created_at': '2026-03-28T15:15:00-03:00',
+                        }
+                    ],
+                },
+                status_codes=200,
+            ),
+        ],
     )
     @action(detail=True, methods=['get'], url_path='history')
     def history(self, request, pk=None):

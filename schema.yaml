@@ -1,0 +1,3540 @@
+openapi: 3.0.3
+info:
+  title: PulseCare API
+  version: 1.0.0
+  description: REST API for PulseCare — a healthcare management system that handles
+    patients, appointments, medical records, and staff users.
+  contact:
+    name: PulseCare Team
+    email: dev@pulsecare.com
+  license:
+    name: MIT
+paths:
+  /api/auth/token/:
+    post:
+      operationId: auth_token_create
+      description: Authenticate with **email + password** and receive a JWT access
+        token (8 h) and refresh token (7 d).
+      summary: Obtain JWT access & refresh tokens
+      tags:
+      - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthTokenRequestRequest'
+            examples:
+              LoginRequest:
+                value:
+                  email: email@email.com
+                  password: Senha@123
+                summary: Login request
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AuthTokenRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AuthTokenRequestRequest'
+        required: true
+      security:
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenResponse'
+              examples:
+                LoginSuccess:
+                  value:
+                    refresh: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh-token
+                    access: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.access-token
+                  summary: Login success
+          description: ''
+  /api/auth/token/refresh/:
+    post:
+      operationId: auth_token_refresh_create
+      description: Exchange a valid refresh token for a new access token.
+      summary: Refresh the JWT access token
+      tags:
+      - Auth
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequestRequest'
+            examples:
+              RefreshRequest:
+                value:
+                  refresh: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh-token
+                summary: Refresh request
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TokenRefreshRequestRequest'
+        required: true
+      security:
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenRefreshResponse'
+              examples:
+                RefreshSuccess:
+                  value:
+                    access: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.new-access-token
+                  summary: Refresh success
+          description: ''
+  /api/accounts/register/:
+    post:
+      operationId: accounts_register_create
+      description: Create a new user with default role **receptionist**. An admin
+        can later promote the user to another role.
+      summary: Register a new account
+      tags:
+      - Accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              ReceptionistRegistration:
+                value:
+                  username: matheus.feu
+                  email: email@email.com
+                  first_name: Matheus
+                  last_name: Feu
+                  phone: '11999999999'
+                  password: StrongPass@123
+                  confirm_password: StrongPass@123
+                summary: Receptionist registration
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      - {}
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              examples:
+                RegistrationSuccess:
+                  value:
+                    id: 12
+                    username: matheus
+                    email: matheus@email.com
+                    first_name: Matheus
+                    last_name: Feulo
+                    full_name: Matheus Feulo
+                    role: receptionist
+                    license_number: null
+                    specialty: null
+                    phone: '11999999999'
+                    avatar: null
+                    is_active: true
+                    is_staff: false
+                    created_at: '2026-03-29T02:10:04-03:00'
+                    updated_at: '2026-03-29T02:10:04-03:00'
+                  summary: Registration success
+          description: ''
+        '400':
+          description: Validation error
+  /api/accounts/password-reset/:
+    post:
+      operationId: accounts_password_reset_create
+      description: Send a one-time password (OTP) to the given e-mail address. The
+        response is always 200 to avoid user enumeration.
+      summary: Request password reset OTP
+      tags:
+      - Accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequestRequest'
+            examples:
+              PasswordResetRequest:
+                value:
+                  email: email@email.com
+                summary: Password reset request
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequestRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordResetRequestResponse'
+              examples:
+                PasswordResetResponse:
+                  value:
+                    otp: '302321'
+                  summary: Password reset response
+          description: Reset OTP sent (if account exists)
+  /api/accounts/password-reset/confirm/:
+    post:
+      operationId: accounts_password_reset_confirm_create
+      description: Validate e-mail + OTP and set a new password.
+      summary: Confirm password reset with OTP
+      tags:
+      - Accounts
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirmRequest'
+            examples:
+              PasswordResetConfirmation:
+                value:
+                  email: email@email.com
+                  otp: '302321'
+                  new_password: NovaSenha@123
+                  confirm_new_password: NovaSenha@123
+                summary: Password reset confirmation
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirmRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PasswordResetConfirmRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailResponse'
+              examples:
+                PasswordResetSuccess:
+                  value:
+                    detail: Password has been reset successfully. You can now log
+                      in.
+                  summary: Password reset success
+          description: Password reset successfully
+        '400':
+          description: Invalid/expired OTP or validation error
+  /api/users/:
+    post:
+      operationId: users_create
+      description: |-
+        ViewSet for managing system users (staff members).
+        Only admins can manage other users.
+        Authenticated users can access only their own self-service endpoints.
+      summary: Create a new user (admin only)
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+            examples:
+              CreateDoctorUser:
+                value:
+                  username: dr.house
+                  email: house@pulsecare.com
+                  first_name: Gregory
+                  last_name: House
+                  role: doctor
+                  license_number: CRM12345
+                  specialty: Diagnostic Medicine
+                  phone: '11988887777'
+                  password: DoctorPass@123
+                  confirm_password: DoctorPass@123
+                summary: Create doctor user
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              examples:
+                UserCreated:
+                  value:
+                    id: 7
+                    username: dr.house
+                    email: house@pulsecare.com
+                    first_name: Gregory
+                    last_name: House
+                    full_name: Gregory House
+                    role: doctor
+                    license_number: CRM12345
+                    specialty: Diagnostic Medicine
+                    phone: '11988887777'
+                    avatar: null
+                    is_active: true
+                    is_staff: false
+                    created_at: '2026-03-29T10:00:00-03:00'
+                    updated_at: '2026-03-29T10:00:00-03:00'
+                  summary: User created
+          description: ''
+        '400':
+          description: Validation error
+    get:
+      operationId: users_list
+      description: |-
+        ViewSet for managing system users (staff members).
+        Only admins can manage other users.
+        Authenticated users can access only their own self-service endpoints.
+      summary: List all active users (admin only)
+      parameters:
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+      - in: query
+        name: is_staff
+        schema:
+          type: boolean
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: role
+        schema:
+          type: string
+        description: Filter by role (admin, doctor, nurse, receptionist)
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUserList'
+          description: ''
+  /api/users/me/change-password/:
+    post:
+      operationId: users_me_change_password_create
+      description: |-
+        ViewSet for managing system users (staff members).
+        Only admins can manage other users.
+        Authenticated users can access only their own self-service endpoints.
+      summary: Change the authenticated user password
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+            examples:
+              ChangePasswordRequest:
+                value:
+                  current_password: Senha@123
+                  new_password: NovaSenha@123
+                  confirm_new_password: NovaSenha@123
+                summary: Change password request
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailResponse'
+              examples:
+                PasswordChangeSuccess:
+                  value:
+                    detail: Password updated successfully.
+                  summary: Password change success
+          description: Password updated successfully.
+        '400':
+          description: Validation error or incorrect password
+  /api/users/me/:
+    get:
+      operationId: users_me_retrieve
+      description: |-
+        ViewSet for managing system users (staff members).
+        Only admins can manage other users.
+        Authenticated users can access only their own self-service endpoints.
+      summary: Get the authenticated user profile
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+              examples:
+                AuthenticatedProfile:
+                  value:
+                    id: 2
+                    username: matheus
+                    email: email@emai.com
+                    first_name: Matheus
+                    last_name: Feu
+                    full_name: Matheus Feu
+                    role: receptionist
+                    license_number: null
+                    specialty: null
+                    phone: '11999999999'
+                    avatar: null
+                    is_active: true
+                    is_staff: false
+                    created_at: '2026-03-29T01:10:04-03:00'
+                    updated_at: '2026-03-29T01:10:04-03:00'
+                  summary: Authenticated profile
+          description: ''
+  /api/users/me/update/:
+    patch:
+      operationId: users_me_update_partial_update
+      description: |-
+        ViewSet for managing system users (staff members).
+        Only admins can manage other users.
+        Authenticated users can access only their own self-service endpoints.
+      summary: Update the authenticated user profile
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUserUpdateRequest'
+            examples:
+              ProfileUpdate:
+                value:
+                  first_name: Matheus
+                  last_name: Feulo
+                  phone: '11977776666'
+                summary: Profile update
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUserUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUserUpdateRequest'
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/users/{id}/:
+    patch:
+      operationId: users_partial_update
+      description: |-
+        ViewSet for managing system users (staff members).
+        Only admins can manage other users.
+        Authenticated users can access only their own self-service endpoints.
+      summary: Partially update a user (admin only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this User.
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedUserUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedUserUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedUserUpdateRequest'
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserUpdate'
+          description: ''
+    delete:
+      operationId: users_destroy
+      description: Override to return 200 with message instead of 204 (since it's
+        a soft delete).
+      summary: Deactivate a user (soft delete, admin only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this User.
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          description: User deactivated
+    put:
+      operationId: users_update
+      description: |-
+        ViewSet for managing system users (staff members).
+        Only admins can manage other users.
+        Authenticated users can access only their own self-service endpoints.
+      summary: Update a user (admin only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this User.
+        required: true
+      tags:
+      - Users
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserUpdate'
+          description: ''
+    get:
+      operationId: users_retrieve
+      description: |-
+        ViewSet for managing system users (staff members).
+        Only admins can manage other users.
+        Authenticated users can access only their own self-service endpoints.
+      summary: Retrieve a user (admin only)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this User.
+        required: true
+      tags:
+      - Users
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+          description: ''
+  /api/patients/:
+    post:
+      operationId: patients_create
+      description: |-
+        ViewSet for managing patients.
+        Supports search, filtering and ordering.
+      summary: Register a new patient
+      tags:
+      - Patients
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientRequest'
+            examples:
+              CreatePatient:
+                value:
+                  first_name: Maria
+                  last_name: Silva
+                  date_of_birth: '1992-04-12'
+                  gender: female
+                  cpf: '12345678901'
+                  phone: '11988887777'
+                  email: maria.silva@email.com
+                  blood_type: O+
+                summary: Create patient
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatientRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatientRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+              examples:
+                PatientCreated:
+                  value:
+                    id: 15
+                    first_name: Maria
+                    last_name: Silva
+                    full_name: Maria Silva
+                    date_of_birth: '1992-04-12'
+                    age: 33
+                    gender: female
+                    cpf: 123.456.789-01
+                    phone: '11988887777'
+                    email: maria.silva@email.com
+                    blood_type: O+
+                    is_active: true
+                    created_by: Admin PulseCare (Administrator)
+                    created_at: '2026-03-29T10:30:00-03:00'
+                    updated_at: '2026-03-29T10:30:00-03:00'
+                  summary: Patient created
+          description: ''
+        '400':
+          description: Validation error (e.g. invalid CPF, duplicate)
+    get:
+      operationId: patients_list
+      description: |-
+        ViewSet for managing patients.
+        Supports search, filtering and ordering.
+      summary: List patients
+      parameters:
+      - in: query
+        name: age_max
+        schema:
+          type: number
+        description: Maximum age
+      - in: query
+        name: age_min
+        schema:
+          type: number
+        description: Minimum age
+      - in: query
+        name: blood_type
+        schema:
+          type: string
+          enum:
+          - A+
+          - A-
+          - AB+
+          - AB-
+          - B+
+          - B-
+          - O+
+          - O-
+          - unknown
+        description: |-
+          * `A+` - A+
+          * `A-` - A-
+          * `B+` - B+
+          * `B-` - B-
+          * `AB+` - AB+
+          * `AB-` - AB-
+          * `O+` - O+
+          * `O-` - O-
+          * `unknown` - Unknown
+      - in: query
+        name: city
+        schema:
+          type: string
+      - in: query
+        name: created_after
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: created_before
+        schema:
+          type: string
+          format: date
+      - in: query
+        name: gender
+        schema:
+          type: string
+          enum:
+          - female
+          - male
+          - other
+          - prefer_not_to_say
+        description: |-
+          * `male` - Male
+          * `female` - Female
+          * `other` - Other
+          * `prefer_not_to_say` - Prefer not to say
+      - in: query
+        name: has_insurance
+        schema:
+          type: boolean
+        description: Has insurance
+      - in: query
+        name: is_active
+        schema:
+          type: boolean
+      - in: query
+        name: name
+        schema:
+          type: string
+        description: Full name (partial)
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: state
+        schema:
+          type: string
+      tags:
+      - Patients
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPatientListList'
+          description: ''
+  /api/patients/{id}/:
+    patch:
+      operationId: patients_partial_update
+      description: |-
+        ViewSet for managing patients.
+        Supports search, filtering and ordering.
+      summary: Partially update a patient
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Patient.
+        required: true
+      tags:
+      - Patients
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPatientRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPatientRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPatientRequest'
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+          description: ''
+    delete:
+      operationId: patients_destroy
+      description: Override to return 200 with message instead of 204 (since it's
+        a soft delete).
+      summary: Deactivate a patient (soft delete)
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Patient.
+        required: true
+      tags:
+      - Patients
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          description: Patient deactivated
+    put:
+      operationId: patients_update
+      description: |-
+        ViewSet for managing patients.
+        Supports search, filtering and ordering.
+      summary: Update a patient
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Patient.
+        required: true
+      tags:
+      - Patients
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatientRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatientRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+          description: ''
+    get:
+      operationId: patients_retrieve
+      description: |-
+        ViewSet for managing patients.
+        Supports search, filtering and ordering.
+      summary: Retrieve a patient
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Patient.
+        required: true
+      tags:
+      - Patients
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+          description: ''
+  /api/patients/{id}/history/:
+    get:
+      operationId: patients_history_retrieve
+      description: Return all appointments and medical records for a given patient.
+      summary: Full clinical history of a patient
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Patient.
+        required: true
+      tags:
+      - Patients
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          description: Appointments and medical records
+  /api/appointments/:
+    post:
+      operationId: appointments_create
+      description: |-
+        ViewSet for managing appointments.
+        Supports filtering by status, doctor, patient, type and date range.
+      summary: Schedule a new appointment
+      tags:
+      - Appointments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentRequest'
+            examples:
+              ScheduleAppointment:
+                value:
+                  patient: 15
+                  doctor: 7
+                  scheduled_at: '2026-03-30T14:30:00-03:00'
+                  duration_minutes: 30
+                  appointment_type: consultation
+                  status: scheduled
+                  reason: Routine checkup
+                  notes: First consultation with this doctor
+                summary: Schedule appointment
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AppointmentRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AppointmentRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+              examples:
+                AppointmentCreated:
+                  value:
+                    id: 42
+                    patient: 15
+                    doctor: 7
+                    scheduled_at: '2026-03-30T14:30:00-03:00'
+                    duration_minutes: 30
+                    appointment_type: consultation
+                    status: scheduled
+                    reason: Routine checkup
+                    notes: First consultation with this doctor
+                    cancellation_reason: ''
+                    created_by: Admin PulseCare (Administrator)
+                    created_at: '2026-03-29T11:00:00-03:00'
+                    updated_at: '2026-03-29T11:00:00-03:00'
+                    patient_detail:
+                      id: 15
+                      full_name: Maria Silva
+                      cpf: 123.456.789-01
+                      date_of_birth: '1992-04-12'
+                      age: 33
+                      gender: female
+                      phone: '11988887777'
+                      blood_type: O+
+                      is_active: true
+                    doctor_detail:
+                      id: 7
+                      username: dr.house
+                      email: house@pulsecare.com
+                      first_name: Gregory
+                      last_name: House
+                      full_name: Gregory House
+                      role: doctor
+                      license_number: CRM12345
+                      specialty: Diagnostic Medicine
+                      phone: '11988887777'
+                      avatar: null
+                      is_active: true
+                      is_staff: false
+                      created_at: '2026-03-20T09:00:00-03:00'
+                      updated_at: '2026-03-20T09:00:00-03:00'
+                  summary: Appointment created
+          description: ''
+        '400':
+          description: Validation error
+    get:
+      operationId: appointments_list
+      description: |-
+        ViewSet for managing appointments.
+        Supports filtering by status, doctor, patient, type and date range.
+      summary: List appointments
+      parameters:
+      - in: query
+        name: appointment_type
+        schema:
+          type: string
+          enum:
+          - consultation
+          - emergency
+          - exam
+          - follow_up
+          - procedure
+          - telemedicine
+        description: |-
+          * `consultation` - Consultation
+          * `follow_up` - Follow-up
+          * `exam` - Exam
+          * `procedure` - Procedure
+          * `emergency` - Emergency
+          * `telemedicine` - Telemedicine
+      - in: query
+        name: date
+        schema:
+          type: string
+          format: date
+        description: Exact date (YYYY-MM-DD)
+      - in: query
+        name: date_from
+        schema:
+          type: string
+          format: date
+        description: Scheduled from (YYYY-MM-DD)
+      - in: query
+        name: date_to
+        schema:
+          type: string
+          format: date
+        description: Scheduled until (YYYY-MM-DD)
+      - in: query
+        name: doctor
+        schema:
+          type: number
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: patient
+        schema:
+          type: number
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - cancelled
+          - completed
+          - confirmed
+          - in_progress
+          - no_show
+          - scheduled
+        description: |-
+          * `scheduled` - Scheduled
+          * `confirmed` - Confirmed
+          * `in_progress` - In Progress
+          * `completed` - Completed
+          * `cancelled` - Cancelled
+          * `no_show` - No Show
+      tags:
+      - Appointments
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAppointmentListList'
+          description: ''
+  /api/appointments/my/:
+    get:
+      operationId: appointments_my_list
+      description: Return all appointments for the currently logged-in doctor.
+      summary: Authenticated doctor's appointments
+      parameters:
+      - in: query
+        name: appointment_type
+        schema:
+          type: string
+          enum:
+          - consultation
+          - emergency
+          - exam
+          - follow_up
+          - procedure
+          - telemedicine
+        description: |-
+          * `consultation` - Consultation
+          * `follow_up` - Follow-up
+          * `exam` - Exam
+          * `procedure` - Procedure
+          * `emergency` - Emergency
+          * `telemedicine` - Telemedicine
+      - in: query
+        name: date
+        schema:
+          type: string
+          format: date
+        description: Exact date (YYYY-MM-DD)
+      - in: query
+        name: date_from
+        schema:
+          type: string
+          format: date
+        description: Scheduled from (YYYY-MM-DD)
+      - in: query
+        name: date_to
+        schema:
+          type: string
+          format: date
+        description: Scheduled until (YYYY-MM-DD)
+      - in: query
+        name: doctor
+        schema:
+          type: number
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: patient
+        schema:
+          type: number
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - cancelled
+          - completed
+          - confirmed
+          - in_progress
+          - no_show
+          - scheduled
+        description: |-
+          * `scheduled` - Scheduled
+          * `confirmed` - Confirmed
+          * `in_progress` - In Progress
+          * `completed` - Completed
+          * `cancelled` - Cancelled
+          * `no_show` - No Show
+      tags:
+      - Appointments
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAppointmentListList'
+              examples:
+                Doctor'sAppointments:
+                  value:
+                    count: 123
+                    next: http://api.example.org/accounts/?page=4
+                    previous: http://api.example.org/accounts/?page=2
+                    results:
+                    - - id: 42
+                        patient: 15
+                        patient_name: Maria Silva
+                        doctor: 7
+                        doctor_name: Gregory House
+                        scheduled_at: '2026-03-30T14:30:00-03:00'
+                        duration_minutes: 30
+                        appointment_type: consultation
+                        status: confirmed
+                        reason: Routine checkup
+                  summary: Doctor's appointments
+          description: ''
+  /api/appointments/today/:
+    get:
+      operationId: appointments_today_list
+      description: Return every appointment scheduled for today (local timezone).
+      summary: Today's appointment schedule
+      parameters:
+      - in: query
+        name: appointment_type
+        schema:
+          type: string
+          enum:
+          - consultation
+          - emergency
+          - exam
+          - follow_up
+          - procedure
+          - telemedicine
+        description: |-
+          * `consultation` - Consultation
+          * `follow_up` - Follow-up
+          * `exam` - Exam
+          * `procedure` - Procedure
+          * `emergency` - Emergency
+          * `telemedicine` - Telemedicine
+      - in: query
+        name: date
+        schema:
+          type: string
+          format: date
+        description: Exact date (YYYY-MM-DD)
+      - in: query
+        name: date_from
+        schema:
+          type: string
+          format: date
+        description: Scheduled from (YYYY-MM-DD)
+      - in: query
+        name: date_to
+        schema:
+          type: string
+          format: date
+        description: Scheduled until (YYYY-MM-DD)
+      - in: query
+        name: doctor
+        schema:
+          type: number
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: patient
+        schema:
+          type: number
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      - in: query
+        name: status
+        schema:
+          type: string
+          enum:
+          - cancelled
+          - completed
+          - confirmed
+          - in_progress
+          - no_show
+          - scheduled
+        description: |-
+          * `scheduled` - Scheduled
+          * `confirmed` - Confirmed
+          * `in_progress` - In Progress
+          * `completed` - Completed
+          * `cancelled` - Cancelled
+          * `no_show` - No Show
+      tags:
+      - Appointments
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAppointmentListList'
+              examples:
+                Today'sAppointments:
+                  value:
+                    count: 123
+                    next: http://api.example.org/accounts/?page=4
+                    previous: http://api.example.org/accounts/?page=2
+                    results:
+                    - - id: 42
+                        patient: 15
+                        patient_name: Maria Silva
+                        doctor: 7
+                        doctor_name: Gregory House
+                        scheduled_at: '2026-03-29T14:30:00-03:00'
+                        duration_minutes: 30
+                        appointment_type: consultation
+                        status: confirmed
+                        reason: Routine checkup
+                      - id: 43
+                        patient: 18
+                        patient_name: Joao Souza
+                        doctor: 7
+                        doctor_name: Gregory House
+                        scheduled_at: '2026-03-29T15:30:00-03:00'
+                        duration_minutes: 20
+                        appointment_type: follow_up
+                        status: scheduled
+                        reason: Blood pressure follow-up
+                  summary: Today's appointments
+          description: ''
+  /api/appointments/{id}/:
+    patch:
+      operationId: appointments_partial_update
+      description: |-
+        ViewSet for managing appointments.
+        Supports filtering by status, doctor, patient, type and date range.
+      summary: Partially update an appointment
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Appointment.
+        required: true
+      tags:
+      - Appointments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAppointmentRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAppointmentRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAppointmentRequest'
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+          description: ''
+    delete:
+      operationId: appointments_destroy
+      description: |-
+        ViewSet for managing appointments.
+        Supports filtering by status, doctor, patient, type and date range.
+      summary: Delete an appointment
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Appointment.
+        required: true
+      tags:
+      - Appointments
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '204':
+          description: Appointment deleted
+    put:
+      operationId: appointments_update
+      description: |-
+        ViewSet for managing appointments.
+        Supports filtering by status, doctor, patient, type and date range.
+      summary: Update an appointment
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Appointment.
+        required: true
+      tags:
+      - Appointments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AppointmentRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AppointmentRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+          description: ''
+    get:
+      operationId: appointments_retrieve
+      description: |-
+        ViewSet for managing appointments.
+        Supports filtering by status, doctor, patient, type and date range.
+      summary: Retrieve an appointment
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Appointment.
+        required: true
+      tags:
+      - Appointments
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+          description: ''
+  /api/appointments/{id}/status/:
+    patch:
+      operationId: appointments_status_partial_update
+      description: 'Quick status transition: confirm, cancel, complete, no-show.'
+      summary: Update appointment status
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Appointment.
+        required: true
+      tags:
+      - Appointments
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAppointmentStatusRequest'
+            examples:
+              ConfirmAppointment:
+                value:
+                  status: confirmed
+                summary: Confirm appointment
+              CancelAppointment:
+                value:
+                  status: cancelled
+                  cancellation_reason: Patient requested cancellation
+                  notes: Reschedule suggested for next week
+                summary: Cancel appointment
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAppointmentStatusRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAppointmentStatusRequest'
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+              examples:
+                StatusUpdated:
+                  value:
+                    id: 42
+                    patient: 15
+                    doctor: 7
+                    scheduled_at: '2026-03-30T14:30:00-03:00'
+                    duration_minutes: 30
+                    appointment_type: consultation
+                    status: confirmed
+                    reason: Routine checkup
+                    notes: Patient confirmed by phone
+                    cancellation_reason: ''
+                  summary: Status updated
+          description: ''
+        '400':
+          description: Invalid status transition
+        '409':
+          description: Status conflict
+  /api/records/:
+    post:
+      operationId: records_create
+      description: |-
+        ViewSet for managing medical records.
+        Only doctors should create/update; all authenticated staff can read.
+      summary: Create a new medical record
+      tags:
+      - Records
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicalRecordRequest'
+            examples:
+              CreateMedicalRecord:
+                value:
+                  patient: 15
+                  doctor: 7
+                  appointment: 42
+                  chief_complaint: Headache and dizziness
+                  history_of_present_illness: Symptoms started 2 days ago after stress
+                    episode.
+                  physical_examination: No focal neurological deficits.
+                  blood_pressure: 120/80
+                  heart_rate: 78
+                  temperature: 36.7
+                  weight: 68.5
+                  height: 1.68
+                  diagnosis: Tension headache
+                  icd10_code: G44.2
+                  prescription: Dipyrone 1g every 8h if needed
+                  treatment_plan: Hydration, rest, and follow-up in 7 days
+                  notes: Patient oriented about warning signs
+                summary: Create medical record
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MedicalRecordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MedicalRecordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalRecord'
+              examples:
+                MedicalRecordCreated:
+                  value:
+                    id: 13
+                    patient: 15
+                    doctor: 7
+                    appointment: 42
+                    chief_complaint: Headache and dizziness
+                    diagnosis: Tension headache
+                    icd10_code: G44.2
+                    prescription: Dipyrone 1g every 8h if needed
+                    treatment_plan: Hydration, rest, and follow-up in 7 days
+                    notes: Patient oriented about warning signs
+                    bmi: 24.27
+                    attachments: []
+                    created_at: '2026-03-29T12:00:00-03:00'
+                    updated_at: '2026-03-29T12:00:00-03:00'
+                  summary: Medical record created
+          description: ''
+        '400':
+          description: Validation error
+        '403':
+          description: Only doctors can create records
+    get:
+      operationId: records_list
+      description: |-
+        ViewSet for managing medical records.
+        Only doctors should create/update; all authenticated staff can read.
+      summary: List medical records
+      parameters:
+      - in: query
+        name: appointment
+        schema:
+          type: number
+      - in: query
+        name: created_after
+        schema:
+          type: string
+          format: date
+        description: Created from (YYYY-MM-DD)
+      - in: query
+        name: created_before
+        schema:
+          type: string
+          format: date
+        description: Created until (YYYY-MM-DD)
+      - in: query
+        name: doctor
+        schema:
+          type: number
+      - in: query
+        name: icd10_code
+        schema:
+          type: string
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: patient
+        schema:
+          type: number
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Records
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedMedicalRecordListList'
+          description: ''
+  /api/records/{id}/:
+    patch:
+      operationId: records_partial_update
+      description: |-
+        ViewSet for managing medical records.
+        Only doctors should create/update; all authenticated staff can read.
+      summary: Partially update a medical record
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Medical Record.
+        required: true
+      tags:
+      - Records
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedMedicalRecordRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedMedicalRecordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedMedicalRecordRequest'
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalRecord'
+          description: ''
+    delete:
+      operationId: records_destroy
+      description: |-
+        ViewSet for managing medical records.
+        Only doctors should create/update; all authenticated staff can read.
+      summary: Delete a medical record
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Medical Record.
+        required: true
+      tags:
+      - Records
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '204':
+          description: Record deleted
+    put:
+      operationId: records_update
+      description: |-
+        ViewSet for managing medical records.
+        Only doctors should create/update; all authenticated staff can read.
+      summary: Update a medical record
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Medical Record.
+        required: true
+      tags:
+      - Records
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MedicalRecordRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/MedicalRecordRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/MedicalRecordRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalRecord'
+          description: ''
+    get:
+      operationId: records_retrieve
+      description: |-
+        ViewSet for managing medical records.
+        Only doctors should create/update; all authenticated staff can read.
+      summary: Retrieve a medical record
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Medical Record.
+        required: true
+      tags:
+      - Records
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MedicalRecord'
+          description: ''
+  /api/records/{id}/attachments/:
+    get:
+      operationId: records_attachments_list
+      description: List all file attachments linked to this medical record.
+      summary: List attachments of a medical record
+      parameters:
+      - in: query
+        name: appointment
+        schema:
+          type: number
+      - in: query
+        name: created_after
+        schema:
+          type: string
+          format: date
+        description: Created from (YYYY-MM-DD)
+      - in: query
+        name: created_before
+        schema:
+          type: string
+          format: date
+        description: Created until (YYYY-MM-DD)
+      - in: query
+        name: doctor
+        schema:
+          type: number
+      - in: query
+        name: icd10_code
+        schema:
+          type: string
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Medical Record.
+        required: true
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - in: query
+        name: patient
+        schema:
+          type: number
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - Records
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRecordAttachmentList'
+              examples:
+                RecordAttachmentsList:
+                  value:
+                    count: 123
+                    next: http://api.example.org/accounts/?page=4
+                    previous: http://api.example.org/accounts/?page=2
+                    results:
+                    - - id: 81
+                        file: /media/records/attachments/cbc_result_2026_03_29.pdf
+                        attachment_type: exam
+                        description: Complete blood count result
+                        uploaded_by: Gregory House (Doctor)
+                        uploaded_at: '2026-03-29T12:10:00-03:00'
+                      - id: 82
+                        file: /media/records/attachments/prescription_2026_03_29.pdf
+                        attachment_type: prescription
+                        description: Signed prescription
+                        uploaded_by: Gregory House (Doctor)
+                        uploaded_at: '2026-03-29T12:12:00-03:00'
+                  summary: Record attachments list
+          description: ''
+    post:
+      operationId: records_attachments_create
+      description: Upload a file (exam result, image, prescription, etc.) to a record.
+      summary: Upload an attachment to a medical record
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Medical Record.
+        required: true
+      tags:
+      - Records
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RecordAttachmentRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/RecordAttachmentRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordAttachment'
+              examples:
+                AttachmentUploaded:
+                  value:
+                    id: 81
+                    file: /media/records/attachments/cbc_result_2026_03_29.pdf
+                    attachment_type: exam
+                    description: Complete blood count result
+                    uploaded_by: Gregory House (Doctor)
+                    uploaded_at: '2026-03-29T12:10:00-03:00'
+                  summary: Attachment uploaded
+          description: ''
+        '400':
+          description: Invalid file (size/type)
+  /api/records/attachments/{id}/:
+    delete:
+      operationId: records_attachments_destroy
+      description: Delete a specific attachment from a medical record.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Record Attachment.
+        required: true
+      tags:
+      - Records
+      security:
+      - jwtAuth: []
+      - BearerAuth: []
+      responses:
+        '204':
+          description: No response body
+components:
+  schemas:
+    Appointment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        patient_detail:
+          allOf:
+          - $ref: '#/components/schemas/PatientList'
+          readOnly: true
+        doctor_detail:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+        created_by:
+          type: string
+          readOnly: true
+        scheduled_at:
+          type: string
+          format: date-time
+        duration_minutes:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          description: Duration in minutes
+        appointment_type:
+          $ref: '#/components/schemas/AppointmentTypeEnum'
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        reason:
+          type: string
+          description: Reason for the appointment
+        notes:
+          type: string
+          nullable: true
+          description: Internal notes
+        cancellation_reason:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        patient:
+          type: integer
+        doctor:
+          type: integer
+          nullable: true
+      required:
+      - created_at
+      - created_by
+      - doctor_detail
+      - id
+      - patient
+      - patient_detail
+      - reason
+      - scheduled_at
+      - updated_at
+    AppointmentList:
+      type: object
+      description: Lightweight serializer for list and nested views.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        patient:
+          type: integer
+        patient_name:
+          type: string
+          readOnly: true
+        doctor:
+          type: integer
+          nullable: true
+        doctor_name:
+          type: string
+          readOnly: true
+        scheduled_at:
+          type: string
+          format: date-time
+        duration_minutes:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          description: Duration in minutes
+        appointment_type:
+          $ref: '#/components/schemas/AppointmentTypeEnum'
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        reason:
+          type: string
+          description: Reason for the appointment
+      required:
+      - doctor_name
+      - id
+      - patient
+      - patient_name
+      - reason
+      - scheduled_at
+    AppointmentRequest:
+      type: object
+      properties:
+        scheduled_at:
+          type: string
+          format: date-time
+        duration_minutes:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          description: Duration in minutes
+        appointment_type:
+          $ref: '#/components/schemas/AppointmentTypeEnum'
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        reason:
+          type: string
+          minLength: 1
+          description: Reason for the appointment
+        notes:
+          type: string
+          nullable: true
+          description: Internal notes
+        cancellation_reason:
+          type: string
+          nullable: true
+        patient:
+          type: integer
+        doctor:
+          type: integer
+          nullable: true
+      required:
+      - patient
+      - reason
+      - scheduled_at
+    AppointmentTypeEnum:
+      enum:
+      - consultation
+      - follow_up
+      - exam
+      - procedure
+      - emergency
+      - telemedicine
+      type: string
+      description: |-
+        * `consultation` - Consultation
+        * `follow_up` - Follow-up
+        * `exam` - Exam
+        * `procedure` - Procedure
+        * `emergency` - Emergency
+        * `telemedicine` - Telemedicine
+    AttachmentTypeEnum:
+      enum:
+      - exam_result
+      - image
+      - prescription
+      - referral
+      - other
+      type: string
+      description: |-
+        * `exam_result` - Exam Result
+        * `image` - Image
+        * `prescription` - Prescription
+        * `referral` - Referral
+        * `other` - Other
+    AuthTokenRequestRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - email
+      - password
+    AuthTokenResponse:
+      type: object
+      properties:
+        refresh:
+          type: string
+        access:
+          type: string
+      required:
+      - access
+      - refresh
+    BloodTypeEnum:
+      enum:
+      - A+
+      - A-
+      - B+
+      - B-
+      - AB+
+      - AB-
+      - O+
+      - O-
+      - unknown
+      type: string
+      description: |-
+        * `A+` - A+
+        * `A-` - A-
+        * `B+` - B+
+        * `B-` - B-
+        * `AB+` - AB+
+        * `AB-` - AB-
+        * `O+` - O+
+        * `O-` - O-
+        * `unknown` - Unknown
+    ChangePasswordRequest:
+      type: object
+      properties:
+        current_password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        new_password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        confirm_new_password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - confirm_new_password
+      - current_password
+      - new_password
+    DetailResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+      required:
+      - detail
+    GenderEnum:
+      enum:
+      - male
+      - female
+      - other
+      - prefer_not_to_say
+      type: string
+      description: |-
+        * `male` - Male
+        * `female` - Female
+        * `other` - Other
+        * `prefer_not_to_say` - Prefer not to say
+    MedicalRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        patient_detail:
+          allOf:
+          - $ref: '#/components/schemas/PatientList'
+          readOnly: true
+        doctor_detail:
+          allOf:
+          - $ref: '#/components/schemas/User'
+          readOnly: true
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecordAttachment'
+          readOnly: true
+        bmi:
+          type: number
+          format: double
+          nullable: true
+          readOnly: true
+        chief_complaint:
+          type: string
+          description: Main reason for the visit
+        history_of_present_illness:
+          type: string
+          nullable: true
+        physical_examination:
+          type: string
+          nullable: true
+        blood_pressure:
+          type: string
+          nullable: true
+          description: e.g. 120/80 mmHg
+          maxLength: 20
+        heart_rate:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+          description: bpm
+        respiratory_rate:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+          description: breaths/min
+        temperature:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,1})?$
+          nullable: true
+          description: °C
+        oxygen_saturation:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+          description: '%'
+        weight:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          nullable: true
+          description: kg
+        height:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          nullable: true
+          description: cm
+        diagnosis:
+          type: string
+        icd10_code:
+          type: string
+          nullable: true
+          title: ICD-10 Code
+          maxLength: 10
+        prescription:
+          type: string
+          nullable: true
+        treatment_plan:
+          type: string
+          nullable: true
+        referrals:
+          type: string
+          nullable: true
+          description: Referrals to specialists or exams
+        follow_up_in_days:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+          description: Follow-up in X days
+        notes:
+          type: string
+          nullable: true
+          description: Additional notes
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        patient:
+          type: integer
+        appointment:
+          type: integer
+          nullable: true
+        doctor:
+          type: integer
+          nullable: true
+      required:
+      - attachments
+      - bmi
+      - chief_complaint
+      - created_at
+      - diagnosis
+      - doctor_detail
+      - id
+      - patient
+      - patient_detail
+      - updated_at
+    MedicalRecordList:
+      type: object
+      description: Lightweight serializer for list and nested views.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        patient:
+          type: integer
+        patient_name:
+          type: string
+          readOnly: true
+        doctor:
+          type: integer
+          nullable: true
+        doctor_name:
+          type: string
+          readOnly: true
+        chief_complaint:
+          type: string
+          description: Main reason for the visit
+        diagnosis:
+          type: string
+        icd10_code:
+          type: string
+          nullable: true
+          title: ICD-10 Code
+          maxLength: 10
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - chief_complaint
+      - created_at
+      - diagnosis
+      - doctor_name
+      - id
+      - patient
+      - patient_name
+    MedicalRecordRequest:
+      type: object
+      properties:
+        chief_complaint:
+          type: string
+          minLength: 1
+          description: Main reason for the visit
+        history_of_present_illness:
+          type: string
+          nullable: true
+        physical_examination:
+          type: string
+          nullable: true
+        blood_pressure:
+          type: string
+          nullable: true
+          description: e.g. 120/80 mmHg
+          maxLength: 20
+        heart_rate:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+          description: bpm
+        respiratory_rate:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+          description: breaths/min
+        temperature:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,1})?$
+          nullable: true
+          description: °C
+        oxygen_saturation:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+          description: '%'
+        weight:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          nullable: true
+          description: kg
+        height:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          nullable: true
+          description: cm
+        diagnosis:
+          type: string
+          minLength: 1
+        icd10_code:
+          type: string
+          nullable: true
+          title: ICD-10 Code
+          maxLength: 10
+        prescription:
+          type: string
+          nullable: true
+        treatment_plan:
+          type: string
+          nullable: true
+        referrals:
+          type: string
+          nullable: true
+          description: Referrals to specialists or exams
+        follow_up_in_days:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+          description: Follow-up in X days
+        notes:
+          type: string
+          nullable: true
+          description: Additional notes
+        patient:
+          type: integer
+        appointment:
+          type: integer
+          nullable: true
+        doctor:
+          type: integer
+          nullable: true
+      required:
+      - chief_complaint
+      - diagnosis
+      - patient
+    PaginatedAppointmentListList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/AppointmentList'
+    PaginatedMedicalRecordListList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/MedicalRecordList'
+    PaginatedPatientListList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PatientList'
+    PaginatedRecordAttachmentList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecordAttachment'
+    PaginatedUserList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/User'
+    PasswordResetConfirmRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+        otp:
+          type: string
+          minLength: 6
+          maxLength: 6
+        new_password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        confirm_new_password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - confirm_new_password
+      - email
+      - new_password
+      - otp
+    PasswordResetRequestRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          minLength: 1
+      required:
+      - email
+    PasswordResetRequestResponse:
+      type: object
+      properties:
+        detail:
+          type: string
+        otp:
+          type: string
+        delivery_mode:
+          type: string
+    PatchedAppointmentRequest:
+      type: object
+      properties:
+        scheduled_at:
+          type: string
+          format: date-time
+        duration_minutes:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          description: Duration in minutes
+        appointment_type:
+          $ref: '#/components/schemas/AppointmentTypeEnum'
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        reason:
+          type: string
+          minLength: 1
+          description: Reason for the appointment
+        notes:
+          type: string
+          nullable: true
+          description: Internal notes
+        cancellation_reason:
+          type: string
+          nullable: true
+        patient:
+          type: integer
+        doctor:
+          type: integer
+          nullable: true
+    PatchedAppointmentStatusRequest:
+      type: object
+      description: Used only for status transitions with validation.
+      properties:
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+        cancellation_reason:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+          description: Internal notes
+    PatchedMedicalRecordRequest:
+      type: object
+      properties:
+        chief_complaint:
+          type: string
+          minLength: 1
+          description: Main reason for the visit
+        history_of_present_illness:
+          type: string
+          nullable: true
+        physical_examination:
+          type: string
+          nullable: true
+        blood_pressure:
+          type: string
+          nullable: true
+          description: e.g. 120/80 mmHg
+          maxLength: 20
+        heart_rate:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+          description: bpm
+        respiratory_rate:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+          description: breaths/min
+        temperature:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,1})?$
+          nullable: true
+          description: °C
+        oxygen_saturation:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+          description: '%'
+        weight:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          nullable: true
+          description: kg
+        height:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,2})?$
+          nullable: true
+          description: cm
+        diagnosis:
+          type: string
+          minLength: 1
+        icd10_code:
+          type: string
+          nullable: true
+          title: ICD-10 Code
+          maxLength: 10
+        prescription:
+          type: string
+          nullable: true
+        treatment_plan:
+          type: string
+          nullable: true
+        referrals:
+          type: string
+          nullable: true
+          description: Referrals to specialists or exams
+        follow_up_in_days:
+          type: integer
+          maximum: 32767
+          minimum: 0
+          nullable: true
+          description: Follow-up in X days
+        notes:
+          type: string
+          nullable: true
+          description: Additional notes
+        patient:
+          type: integer
+        appointment:
+          type: integer
+          nullable: true
+        doctor:
+          type: integer
+          nullable: true
+    PatchedPatientRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        date_of_birth:
+          type: string
+          format: date
+        gender:
+          $ref: '#/components/schemas/GenderEnum'
+        cpf:
+          type: string
+          minLength: 1
+          description: Brazilian CPF (e.g. 000.000.000-00)
+          maxLength: 14
+        rg:
+          type: string
+          nullable: true
+          maxLength: 20
+        phone:
+          type: string
+          minLength: 1
+          maxLength: 20
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
+        zip_code:
+          type: string
+          nullable: true
+          maxLength: 10
+        street:
+          type: string
+          nullable: true
+          maxLength: 200
+        number:
+          type: string
+          nullable: true
+          maxLength: 10
+        complement:
+          type: string
+          nullable: true
+          maxLength: 100
+        neighborhood:
+          type: string
+          nullable: true
+          maxLength: 100
+        city:
+          type: string
+          nullable: true
+          maxLength: 100
+        state:
+          type: string
+          nullable: true
+          maxLength: 2
+        blood_type:
+          $ref: '#/components/schemas/BloodTypeEnum'
+        allergies:
+          type: string
+          nullable: true
+        chronic_conditions:
+          type: string
+          nullable: true
+        current_medications:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+          title: General notes
+        emergency_contact_name:
+          type: string
+          nullable: true
+          maxLength: 150
+        emergency_contact_phone:
+          type: string
+          nullable: true
+          maxLength: 20
+        emergency_contact_relationship:
+          type: string
+          nullable: true
+          maxLength: 50
+        insurance_provider:
+          type: string
+          nullable: true
+          maxLength: 100
+        insurance_plan:
+          type: string
+          nullable: true
+          maxLength: 100
+        insurance_number:
+          type: string
+          nullable: true
+          maxLength: 50
+        is_active:
+          type: boolean
+    PatchedUserUpdateRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone:
+          type: string
+          nullable: true
+          maxLength: 20
+        avatar:
+          type: string
+          format: binary
+          nullable: true
+        license_number:
+          type: string
+          nullable: true
+          description: CRM / COREN / council number
+          maxLength: 30
+        specialty:
+          type: string
+          nullable: true
+          maxLength: 100
+    Patient:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        full_name:
+          type: string
+          readOnly: true
+        age:
+          type: integer
+          readOnly: true
+        created_by:
+          type: string
+          readOnly: true
+        first_name:
+          type: string
+          maxLength: 100
+        last_name:
+          type: string
+          maxLength: 100
+        date_of_birth:
+          type: string
+          format: date
+        gender:
+          $ref: '#/components/schemas/GenderEnum'
+        cpf:
+          type: string
+          description: Brazilian CPF (e.g. 000.000.000-00)
+          maxLength: 14
+        rg:
+          type: string
+          nullable: true
+          maxLength: 20
+        phone:
+          type: string
+          maxLength: 20
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
+        zip_code:
+          type: string
+          nullable: true
+          maxLength: 10
+        street:
+          type: string
+          nullable: true
+          maxLength: 200
+        number:
+          type: string
+          nullable: true
+          maxLength: 10
+        complement:
+          type: string
+          nullable: true
+          maxLength: 100
+        neighborhood:
+          type: string
+          nullable: true
+          maxLength: 100
+        city:
+          type: string
+          nullable: true
+          maxLength: 100
+        state:
+          type: string
+          nullable: true
+          maxLength: 2
+        blood_type:
+          $ref: '#/components/schemas/BloodTypeEnum'
+        allergies:
+          type: string
+          nullable: true
+        chronic_conditions:
+          type: string
+          nullable: true
+        current_medications:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+          title: General notes
+        emergency_contact_name:
+          type: string
+          nullable: true
+          maxLength: 150
+        emergency_contact_phone:
+          type: string
+          nullable: true
+          maxLength: 20
+        emergency_contact_relationship:
+          type: string
+          nullable: true
+          maxLength: 50
+        insurance_provider:
+          type: string
+          nullable: true
+          maxLength: 100
+        insurance_plan:
+          type: string
+          nullable: true
+          maxLength: 100
+        insurance_number:
+          type: string
+          nullable: true
+          maxLength: 50
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - age
+      - cpf
+      - created_at
+      - created_by
+      - date_of_birth
+      - first_name
+      - full_name
+      - id
+      - last_name
+      - phone
+      - updated_at
+    PatientList:
+      type: object
+      description: Lightweight serializer for list views.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        full_name:
+          type: string
+          readOnly: true
+        cpf:
+          type: string
+          description: Brazilian CPF (e.g. 000.000.000-00)
+          maxLength: 14
+        date_of_birth:
+          type: string
+          format: date
+        age:
+          type: integer
+          readOnly: true
+        gender:
+          $ref: '#/components/schemas/GenderEnum'
+        phone:
+          type: string
+          maxLength: 20
+        blood_type:
+          $ref: '#/components/schemas/BloodTypeEnum'
+        is_active:
+          type: boolean
+      required:
+      - age
+      - cpf
+      - date_of_birth
+      - full_name
+      - id
+      - phone
+    PatientListRequest:
+      type: object
+      description: Lightweight serializer for list views.
+      properties:
+        cpf:
+          type: string
+          minLength: 1
+          description: Brazilian CPF (e.g. 000.000.000-00)
+          maxLength: 14
+        date_of_birth:
+          type: string
+          format: date
+        gender:
+          $ref: '#/components/schemas/GenderEnum'
+        phone:
+          type: string
+          minLength: 1
+          maxLength: 20
+        blood_type:
+          $ref: '#/components/schemas/BloodTypeEnum'
+        is_active:
+          type: boolean
+      required:
+      - cpf
+      - date_of_birth
+      - phone
+    PatientRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        date_of_birth:
+          type: string
+          format: date
+        gender:
+          $ref: '#/components/schemas/GenderEnum'
+        cpf:
+          type: string
+          minLength: 1
+          description: Brazilian CPF (e.g. 000.000.000-00)
+          maxLength: 14
+        rg:
+          type: string
+          nullable: true
+          maxLength: 20
+        phone:
+          type: string
+          minLength: 1
+          maxLength: 20
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
+        zip_code:
+          type: string
+          nullable: true
+          maxLength: 10
+        street:
+          type: string
+          nullable: true
+          maxLength: 200
+        number:
+          type: string
+          nullable: true
+          maxLength: 10
+        complement:
+          type: string
+          nullable: true
+          maxLength: 100
+        neighborhood:
+          type: string
+          nullable: true
+          maxLength: 100
+        city:
+          type: string
+          nullable: true
+          maxLength: 100
+        state:
+          type: string
+          nullable: true
+          maxLength: 2
+        blood_type:
+          $ref: '#/components/schemas/BloodTypeEnum'
+        allergies:
+          type: string
+          nullable: true
+        chronic_conditions:
+          type: string
+          nullable: true
+        current_medications:
+          type: string
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+          title: General notes
+        emergency_contact_name:
+          type: string
+          nullable: true
+          maxLength: 150
+        emergency_contact_phone:
+          type: string
+          nullable: true
+          maxLength: 20
+        emergency_contact_relationship:
+          type: string
+          nullable: true
+          maxLength: 50
+        insurance_provider:
+          type: string
+          nullable: true
+          maxLength: 100
+        insurance_plan:
+          type: string
+          nullable: true
+          maxLength: 100
+        insurance_number:
+          type: string
+          nullable: true
+          maxLength: 50
+        is_active:
+          type: boolean
+      required:
+      - cpf
+      - date_of_birth
+      - first_name
+      - last_name
+      - phone
+    RecordAttachment:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        file:
+          type: string
+          format: uri
+        attachment_type:
+          $ref: '#/components/schemas/AttachmentTypeEnum'
+        description:
+          type: string
+          nullable: true
+          maxLength: 255
+        uploaded_by:
+          type: string
+          readOnly: true
+        uploaded_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - file
+      - id
+      - uploaded_at
+      - uploaded_by
+    RecordAttachmentRequest:
+      type: object
+      properties:
+        file:
+          type: string
+          format: binary
+        attachment_type:
+          $ref: '#/components/schemas/AttachmentTypeEnum'
+        description:
+          type: string
+          nullable: true
+          maxLength: 255
+      required:
+      - file
+    RegisterRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 1
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          minLength: 1
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone:
+          type: string
+          nullable: true
+          maxLength: 20
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        confirm_password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - confirm_password
+      - email
+      - password
+      - username
+    RoleEnum:
+      enum:
+      - admin
+      - doctor
+      - nurse
+      - receptionist
+      type: string
+      description: |-
+        * `admin` - Administrator
+        * `doctor` - Doctor
+        * `nurse` - Nurse
+        * `receptionist` - Receptionist
+    StatusEnum:
+      enum:
+      - scheduled
+      - confirmed
+      - in_progress
+      - completed
+      - cancelled
+      - no_show
+      type: string
+      description: |-
+        * `scheduled` - Scheduled
+        * `confirmed` - Confirmed
+        * `in_progress` - In Progress
+        * `completed` - Completed
+        * `cancelled` - Cancelled
+        * `no_show` - No Show
+    TokenRefreshRequestRequest:
+      type: object
+      properties:
+        refresh:
+          type: string
+          minLength: 1
+      required:
+      - refresh
+    TokenRefreshResponse:
+      type: object
+      properties:
+        access:
+          type: string
+      required:
+      - access
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        username:
+          type: string
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        full_name:
+          type: string
+          readOnly: true
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        license_number:
+          type: string
+          nullable: true
+          description: CRM / COREN / council number
+          maxLength: 30
+        specialty:
+          type: string
+          nullable: true
+          maxLength: 100
+        phone:
+          type: string
+          nullable: true
+          maxLength: 20
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+        is_active:
+          type: boolean
+        is_staff:
+          type: boolean
+          title: Staff status
+          description: Designates whether the user can log into this admin site.
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - created_at
+      - email
+      - full_name
+      - id
+      - updated_at
+      - username
+    UserCreateRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 1
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          minLength: 1
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        license_number:
+          type: string
+          nullable: true
+          description: CRM / COREN / council number
+          maxLength: 30
+        specialty:
+          type: string
+          nullable: true
+          maxLength: 100
+        phone:
+          type: string
+          nullable: true
+          maxLength: 20
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+        confirm_password:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+      - confirm_password
+      - email
+      - password
+      - username
+    UserRequest:
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 1
+          description: Required. 150 characters or fewer. Letters, digits and @/./+/-/_
+            only.
+          pattern: ^[\w.@+-]+$
+          maxLength: 150
+        email:
+          type: string
+          format: email
+          minLength: 1
+          maxLength: 254
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        role:
+          $ref: '#/components/schemas/RoleEnum'
+        license_number:
+          type: string
+          nullable: true
+          description: CRM / COREN / council number
+          maxLength: 30
+        specialty:
+          type: string
+          nullable: true
+          maxLength: 100
+        phone:
+          type: string
+          nullable: true
+          maxLength: 20
+        avatar:
+          type: string
+          format: binary
+          nullable: true
+        is_active:
+          type: boolean
+        is_staff:
+          type: boolean
+          title: Staff status
+          description: Designates whether the user can log into this admin site.
+      required:
+      - email
+      - username
+    UserUpdate:
+      type: object
+      properties:
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone:
+          type: string
+          nullable: true
+          maxLength: 20
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+        license_number:
+          type: string
+          nullable: true
+          description: CRM / COREN / council number
+          maxLength: 30
+        specialty:
+          type: string
+          nullable: true
+          maxLength: 100
+    UserUpdateRequest:
+      type: object
+      properties:
+        first_name:
+          type: string
+          maxLength: 150
+        last_name:
+          type: string
+          maxLength: 150
+        phone:
+          type: string
+          nullable: true
+          maxLength: 20
+        avatar:
+          type: string
+          format: binary
+          nullable: true
+        license_number:
+          type: string
+          nullable: true
+          description: CRM / COREN / council number
+          maxLength: 30
+        specialty:
+          type: string
+          nullable: true
+          maxLength: 100
+  securitySchemes:
+    jwtAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+tags:
+- name: Accounts
+  description: Registration and password reset
+- name: Auth
+  description: JWT token endpoints
+- name: Users
+  description: Staff user management
+- name: Patients
+  description: Patient registration and management
+- name: Appointments
+  description: Appointment scheduling
+- name: Records
+  description: Medical records and attachments
