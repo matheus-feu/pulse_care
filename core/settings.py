@@ -133,13 +133,16 @@ SIMPLE_JWT = {
     'USER_ID_CLAIM': 'user_id',
 }
 
+API_VERSION = '1.0.0'
+API_VERSION_PREFIX = f'v{API_VERSION.split(".")[0]}'  # e.g. "v1"
+
 SPECTACULAR_SETTINGS = {
     'TITLE': 'PulseCare API',
     'DESCRIPTION': (
         'REST API for PulseCare — a healthcare management system that handles '
         'patients, appointments, medical records, and staff users.'
     ),
-    'VERSION': '1.0.0',
+    'VERSION': API_VERSION,
     'SERVE_INCLUDE_SCHEMA': False,
     'CONTACT': {'name': 'PulseCare Team', 'email': 'dev@pulsecare.com'},
     'LICENSE': {'name': 'MIT'},

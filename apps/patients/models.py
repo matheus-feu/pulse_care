@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 
 from core.utils import calculate_age
+from .managers import PatientManager
 
 
 class Patient(models.Model):
@@ -70,6 +71,8 @@ class Patient(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = PatientManager()
 
     class Meta:
         verbose_name = 'Patient'

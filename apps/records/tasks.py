@@ -22,11 +22,7 @@ def notify_doctor_record_created(self, record_id: int) -> dict:
     logger.info(f'Task start records.notify_doctor_record_created task_id={self.request.id} record_id={record_id}')
 
     try:
-        record = (
-            MedicalRecord.objects
-            .select_related('patient', 'doctor')
-            .get(pk=record_id)
-        )
+        record = MedicalRecord.objects.with_relations().get(pk=record_id)
     except MedicalRecord.DoesNotExist:
         logger.info(f'Task skip records.notify_doctor_record_created record_id={record_id} reason=not_found')
         return {'status': 'skipped', 'reason': 'not_found'}

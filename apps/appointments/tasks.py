@@ -1,8 +1,6 @@
 import logging
-from datetime import timedelta
 
 from celery import shared_task
-from django.utils import timezone
 
 from core.utils import format_datetime_br, send_notification_email
 
@@ -24,11 +22,7 @@ def send_appointment_reminder(self, appointment_id: int) -> dict:
 
     logger.info(f'Task start appointments.send_appointment_reminder task_id={self.request.id} appointment_id={appointment_id}')
     try:
-        appointment = (
-            Appointment.objects
-            .select_related('patient', 'doctor')
-            .get(pk=appointment_id)
-        )
+        appointment = Appointment.objects.with_relations().get(pk=appointment_id)
     except Appointment.DoesNotExist:
         logger.info(f'Task skip appointments.send_appointment_reminder appointment_id={appointment_id} reason=not_found')
         return {'status': 'skipped', 'reason': 'not_found'}
@@ -80,11 +74,7 @@ def send_appointment_confirmation(self, appointment_id: int) -> dict:
     logger.info('Task start appointments.send_appointment_confirmation task_id=%s appointment_id=%s', self.request.id, appointment_id)
 
     try:
-        appointment = (
-            Appointment.objects
-            .select_related('patient', 'doctor')
-            .get(pk=appointment_id)
-        )
+        appointment = Appointment.objects.with_relations().get(pk=appointment_id)
     except Appointment.DoesNotExist:
         logger.info('Task skip appointments.send_appointment_confirmation appointment_id=%s reason=not_found', appointment_id)
         return {'status': 'skipped', 'reason': 'not_found'}
@@ -129,12 +119,9 @@ def cancel_no_show_appointments() -> dict:
 
     logger.info('Task start appointments.cancel_no_show_appointments')
 
-    threshold = timezone.now() - timedelta(hours=2)
-    pending_statuses = [Appointment.Status.SCHEDULED, Appointment.Status.CONFIRMED]
-
     updated = (
         Appointment.objects
-        .filter(status__in=pending_statuses, scheduled_at__lte=threshold)
+        .no_show_candidates(hours=2)
         .update(status=Appointment.Status.NO_SHOW)
     )
 

@@ -22,77 +22,79 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, Sp
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from core.swagger import (
-    AUTH_TOKEN_REQUEST_SERIALIZER,
-    AUTH_TOKEN_RESPONSE_SERIALIZER,
-    TOKEN_REFRESH_REQUEST_SERIALIZER,
-    TOKEN_REFRESH_RESPONSE_SERIALIZER,
-    extend_schema_with_examples,
-    request_example,
-    response_example,
+	AUTH_TOKEN_REQUEST_SERIALIZER,
+	AUTH_TOKEN_RESPONSE_SERIALIZER,
+	TOKEN_REFRESH_REQUEST_SERIALIZER,
+	TOKEN_REFRESH_RESPONSE_SERIALIZER,
+	extend_schema_with_examples,
+	request_example,
+	response_example,
 )
 
+API_PREFIX = f'api/{settings.API_VERSION_PREFIX}'  # -> e.g. "api/v1"
+
 TokenObtainPairView = extend_schema_with_examples(
-    tags=['Auth'],
-    summary='Obtain JWT access & refresh tokens',
-    description='Authenticate with **email + password** and receive a JWT access token (8 h) and refresh token (7 d).',
-    request=AUTH_TOKEN_REQUEST_SERIALIZER,
-    responses={200: AUTH_TOKEN_RESPONSE_SERIALIZER},
-    request_examples=[
-        request_example(
-            'Login request',
-            {
-                'email': 'email@email.com',
-                'password': 'Senha@123',
-            },
-        ),
-    ],
-    response_examples=[
-        response_example(
-            'Login success',
-            {
-                'refresh': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh-token',
-                'access': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.access-token',
-            },
-            status_codes=200,
-        ),
-    ],
+	tags=['Auth'],
+	summary='Obtain JWT access & refresh tokens',
+	description='Authenticate with **email + password** and receive a JWT access token (8 h) and refresh token (7 d).',
+	request=AUTH_TOKEN_REQUEST_SERIALIZER,
+	responses={200: AUTH_TOKEN_RESPONSE_SERIALIZER},
+	request_examples=[
+		request_example(
+			'Login request',
+			{
+				'email': 'email@email.com',
+				'password': 'Senha@123',
+			},
+		),
+	],
+	response_examples=[
+		response_example(
+			'Login success',
+			{
+				'refresh': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh-token',
+				'access': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.access-token',
+			},
+			status_codes=200,
+		),
+	],
 )(TokenObtainPairView)
 
 TokenRefreshView = extend_schema_with_examples(
-    tags=['Auth'],
-    summary='Refresh the JWT access token',
-    description='Exchange a valid refresh token for a new access token.',
-    request=TOKEN_REFRESH_REQUEST_SERIALIZER,
-    responses={200: TOKEN_REFRESH_RESPONSE_SERIALIZER},
-    request_examples=[
-        request_example(
-            'Refresh request',
-            {
-                'refresh': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh-token',
-            },
-        ),
-    ],
-    response_examples=[
-        response_example(
-            'Refresh success',
-            {
-                'access': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.new-access-token',
-            },
-            status_codes=200,
-        ),
-    ],
+	tags=['Auth'],
+	summary='Refresh the JWT access token',
+	description='Exchange a valid refresh token for a new access token.',
+	request=TOKEN_REFRESH_REQUEST_SERIALIZER,
+	responses={200: TOKEN_REFRESH_RESPONSE_SERIALIZER},
+	request_examples=[
+		request_example(
+			'Refresh request',
+			{
+				'refresh': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.refresh-token',
+			},
+		),
+	],
+	response_examples=[
+		response_example(
+			'Refresh success',
+			{
+				'access': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.new-access-token',
+			},
+			status_codes=200,
+		),
+	],
 )(TokenRefreshView)
 
 urlpatterns = [
-                  path('admin/', admin.site.urls),
-                  path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
-                  path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
-                  path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
-                  path('api/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-                  path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-                  path('api/accounts/', include('apps.accounts.urls')),
-                  path('api/users/', include('apps.users.urls')),
-                  path('api/patients/', include('apps.patients.urls')),
-                  path('api/appointments/', include('apps.appointments.urls')),
-                  path('api/records/', include('apps.records.urls')),
+	              path('admin/', admin.site.urls),
+	              path(f'{API_PREFIX}/schema/', SpectacularAPIView.as_view(), name='schema'),
+	              path(f'{API_PREFIX}/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+	              path(f'{API_PREFIX}/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+	              path(f'{API_PREFIX}/auth/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+	              path(f'{API_PREFIX}/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+	              path(f'{API_PREFIX}/accounts/', include('apps.accounts.urls')),
+	              path(f'{API_PREFIX}/users/', include('apps.users.urls')),
+	              path(f'{API_PREFIX}/patients/', include('apps.patients.urls')),
+	              path(f'{API_PREFIX}/appointments/', include('apps.appointments.urls')),
+	              path(f'{API_PREFIX}/records/', include('apps.records.urls')),
               ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

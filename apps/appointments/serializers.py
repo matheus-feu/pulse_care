@@ -35,7 +35,6 @@ class AppointmentSerializer(serializers.ModelSerializer):
         fields = '__all__'
         read_only_fields = ['created_by', 'created_at', 'updated_at']
 
-    # ── field-level ─────────────────────────────────────────────────
     def validate_scheduled_at(self, value):
         """Appointments must be scheduled in the future."""
         if value <= timezone.now():
@@ -69,7 +68,6 @@ class AppointmentSerializer(serializers.ModelSerializer):
             )
         return value
 
-    # ── object-level ────────────────────────────────────────────────
     def validate(self, attrs):
         doctor = attrs.get('doctor', getattr(self.instance, 'doctor', None))
         scheduled_at = attrs.get('scheduled_at', getattr(self.instance, 'scheduled_at', None))

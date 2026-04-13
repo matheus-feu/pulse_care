@@ -1,6 +1,5 @@
 import logging
 
-from django.utils import timezone
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -110,7 +109,7 @@ class AppointmentViewSet(ActorContextMixin, viewsets.ModelViewSet):
     Supports filtering by status, doctor, patient, type and date range.
     """
 
-    queryset = Appointment.objects.select_related('patient', 'doctor', 'created_by')
+    queryset = Appointment.objects.with_relations()
     serializer_class = AppointmentSerializer
     permission_classes = [IsAuthenticated]
     filterset_class = AppointmentFilter
@@ -126,11 +125,7 @@ class AppointmentViewSet(ActorContextMixin, viewsets.ModelViewSet):
         return AppointmentSerializer
 
     def get_queryset(self):
-        return (
-            Appointment.objects
-            .select_related('patient', 'doctor', 'created_by')
-            .order_by('-scheduled_at')
-        )
+        return Appointment.objects.with_relations().ordered()
 
     def perform_create(self, serializer):
         appointment = serializer.save(created_by=self.request.user)
@@ -145,8 +140,7 @@ class AppointmentViewSet(ActorContextMixin, viewsets.ModelViewSet):
                 detail=f'Cannot delete an appointment with status "{instance.status}".',
             )
         actor_email = self.actor_email()
-        logger.info(
-            f'Appointment deleted by={actor_email} appointment_id={instance.pk}')
+        logger.info(f'Appointment deleted by={actor_email} appointment_id={instance.pk}')
         super().perform_destroy(instance)
 
     @extend_schema_with_examples(
@@ -247,7 +241,7 @@ class AppointmentViewSet(ActorContextMixin, viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='today')
     def today(self, request):
         """Return every appointment scheduled for today (local timezone)."""
-        queryset = self.get_queryset().filter(scheduled_at__date=timezone.localdate())
+        queryset = self.get_queryset().today()
         actor_email = self.actor_email(request)
         logger.info(
             f'Today appointments requested by user_id={request.user.pk} '
@@ -294,7 +288,7 @@ class AppointmentViewSet(ActorContextMixin, viewsets.ModelViewSet):
                 {'detail': 'Only doctors can access their own appointment list.'},
                 status=status.HTTP_403_FORBIDDEN,
             )
-        queryset = self.get_queryset().filter(doctor=request.user)
+        queryset = self.get_queryset().for_doctor(request.user)
         actor_email = self.actor_email(request)
         logger.info(
             f'My appointments requested by doctor_id={request.user.pk} '

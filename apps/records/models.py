@@ -2,6 +2,7 @@ from django.db import models
 from django.conf import settings
 from apps.patients.models import Patient
 from apps.appointments.models import Appointment
+from .managers import MedicalRecordManager, RecordAttachmentManager
 
 
 class MedicalRecord(models.Model):
@@ -51,6 +52,8 @@ class MedicalRecord(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = MedicalRecordManager()
+
     class Meta:
         verbose_name = 'Medical Record'
         verbose_name_plural = 'Medical Records'
@@ -94,6 +97,8 @@ class RecordAttachment(models.Model):
         related_name='record_attachments',
     )
     uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    objects = RecordAttachmentManager()
 
     class Meta:
         verbose_name = 'Record Attachment'

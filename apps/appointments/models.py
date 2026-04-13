@@ -1,6 +1,7 @@
 from django.db import models
 from django.conf import settings
 from apps.patients.models import Patient
+from .managers import AppointmentManager
 
 
 class Appointment(models.Model):
@@ -56,6 +57,8 @@ class Appointment(models.Model):
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = AppointmentManager()
 
     class Meta:
         verbose_name = 'Appointment'

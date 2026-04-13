@@ -61,7 +61,8 @@ services:
     restart: unless-stopped
     environment:
       ELASTICSEARCH_HOSTS: http://elasticsearch:9200
-      ELASTICSEARCH_SERVICEACCOUNTTOKEN: ${KIBANA_SERVICE_TOKEN}
+      ELASTICSEARCH_USERNAME: ${ELASTIC_USER}
+      ELASTICSEARCH_PASSWORD: ${ELASTIC_PASSWORD}
     depends_on:
       elasticsearch:
         condition: service_healthy
@@ -120,6 +121,12 @@ services:
         condition: service_healthy
       apm_server:
         condition: service_started
+    healthcheck:
+      test: [ "CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health/\")'" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
   celery_worker:
     build: .
@@ -136,12 +143,10 @@ services:
       APM_SERVER_URL: http://apm_server:8200
       ELASTICSEARCH_URL: http://${ELASTIC_USER}:${ELASTIC_PASSWORD}@elasticsearch:9200
     depends_on:
-      db:
+      web:
         condition: service_healthy
       redis:
         condition: service_healthy
-      apm_server:
-        condition: service_started
 
   celery_beat:
     build: .
@@ -158,12 +163,10 @@ services:
       APM_SERVER_URL: http://apm_server:8200
       ELASTICSEARCH_URL: http://${ELASTIC_USER}:${ELASTIC_PASSWORD}@elasticsearch:9200
     depends_on:
-      db:
+      web:
         condition: service_healthy
       redis:
         condition: service_healthy
-      apm_server:
-        condition: service_started
 
 volumes:
   postgres_data:

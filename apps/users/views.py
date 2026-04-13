@@ -108,7 +108,7 @@ class UserViewSet(ActorContextMixin, SoftDeleteMixin, viewsets.ModelViewSet):
 
     admin_actions = {'list', 'retrieve', 'create', 'update', 'partial_update', 'destroy'}
 
-    queryset = User.objects.filter(is_active=True).order_by('first_name', 'last_name')
+    queryset = User.objects.active().ordered()
     serializer_class = UserSerializer
     soft_delete_response_message = 'User deactivated successfully.'
     search_fields = ['first_name', 'last_name', 'email', 'role']
@@ -128,14 +128,14 @@ class UserViewSet(ActorContextMixin, SoftDeleteMixin, viewsets.ModelViewSet):
         return UserSerializer
 
     def get_queryset(self):
-        queryset = User.objects.filter(is_active=True)
+        queryset = User.objects.active()
         if not IsSystemAdmin().has_permission(self.request, self):
-            return queryset.filter(pk=self.request.user.pk).order_by('first_name', 'last_name')
+            return queryset.filter(pk=self.request.user.pk).ordered()
         params = getattr(self.request, 'query_params', self.request.GET)
         role = params.get('role')
         if role:
-            queryset = queryset.filter(role=role)
-        return queryset.order_by('first_name', 'last_name')
+            queryset = queryset.by_role(role)
+        return queryset.ordered()
 
     def perform_create(self, serializer):
         user = serializer.save()

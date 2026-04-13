@@ -1,6 +1,5 @@
 import logging
 
-from django.db.models import Count
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse
 from rest_framework import viewsets
 from rest_framework.decorators import action
@@ -79,7 +78,7 @@ class PatientViewSet(ActorContextMixin, SoftDeleteMixin, viewsets.ModelViewSet):
     Supports search, filtering and ordering.
     """
 
-    queryset = Patient.objects.filter(is_active=True).select_related('created_by')
+    queryset = Patient.objects.active().with_creator()
     serializer_class = PatientSerializer
     permission_classes = [IsAuthenticated]
     soft_delete_response_message = 'Patient deactivated successfully.'
@@ -94,19 +93,16 @@ class PatientViewSet(ActorContextMixin, SoftDeleteMixin, viewsets.ModelViewSet):
         return PatientSerializer
 
     def get_queryset(self):
-        queryset = Patient.objects.select_related('created_by')
+        queryset = Patient.objects.with_creator()
 
         if self.action == 'list':
-            queryset = queryset.annotate(
-                appointments_count=Count('appointments', distinct=True),
-                medical_records_count=Count('medical_records', distinct=True),
-            )
+            queryset = queryset.with_stats()
 
         params = getattr(self.request, 'query_params', self.request.GET)
         show_inactive = params.get('show_inactive', '').lower() == 'true'
         if not show_inactive:
-            queryset = queryset.filter(is_active=True)
-        return queryset.order_by('last_name', 'first_name')
+            queryset = queryset.active()
+        return queryset.ordered()
 
     def perform_create(self, serializer):
         patient = serializer.save(created_by=self.request.user)

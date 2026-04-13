@@ -1,6 +1,5 @@
 import logging
 
-from django.db.models import Count
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiResponse
 from rest_framework import viewsets, mixins, status
 from rest_framework.decorators import action
@@ -93,7 +92,7 @@ class MedicalRecordViewSet(ActorContextMixin, viewsets.ModelViewSet):
     Only doctors should create/update; all authenticated staff can read.
     """
 
-    queryset = MedicalRecord.objects.select_related('patient', 'doctor', 'appointment')
+    queryset = MedicalRecord.objects.with_relations()
     serializer_class = MedicalRecordSerializer
     permission_classes = [IsAuthenticated]
     filterset_class = MedicalRecordFilter
@@ -113,16 +112,12 @@ class MedicalRecordViewSet(ActorContextMixin, viewsets.ModelViewSet):
         return MedicalRecordSerializer
 
     def get_queryset(self):
-        queryset = (
-            MedicalRecord.objects
-            .select_related('patient', 'doctor', 'appointment')
-            .order_by('-created_at')
-        )
+        queryset = MedicalRecord.objects.with_relations().ordered()
 
         if self.action == 'list':
-            return queryset.annotate(attachments_count=Count('attachments', distinct=True))
+            return queryset.with_attachment_count()
 
-        return queryset.prefetch_related('attachments')
+        return queryset.with_attachments()
 
     def perform_create(self, serializer):
         user = self.request.user
